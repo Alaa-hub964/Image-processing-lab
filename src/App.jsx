@@ -57,6 +57,19 @@ const MODULES = [
     topics:["Harris Corners","Shi-Tomasi","FAST Detect","DoG (SIFT-like)","Gradient Mag","Gradient Dir","HOG Cells","LBP Texture","Dense Grid","ORB-like Keypoints","Feature Heatmap"],
     theory:{ "Harris":"M=Sumw[Ix^2,IxIy;IxIy,Iy^2]. R=det-k*trace^2. Corner if R>threshold.", "SIFT":"DoG extrema->orientation->128-D gradient histogram. Scale+rotation invariant.", "ORB":"Oriented FAST + Rotated BRIEF. 256-bit binary. Patent-free. 100x faster than SIFT.", "HOG":"8x8 cells -> 9-bin orientation histograms -> L2-normalize in 16x16 blocks.", "LBP":"8-neighbor binary label against center. Rotation-invariant. Texture descriptor." }},
 
+
+  { id:"morphology", icon:"🔬", label:"Morphological Operations",       color:"#c77dff",
+    topics:["Erosion","Dilation","Opening","Closing","Morphological Gradient","Top Hat","Black Hat","Thinning","Thickening","Hit-or-Miss"],
+    theory:{ "Erosion":"Shrinks bright regions. Removes small objects, protrusions, noise. SE shape determines erosion direction.", "Dilation":"Expands bright regions. Fills holes, connects components. Dual of erosion.", "Opening":"Erosion then dilation. Removes small bright spots, smooths contour without changing area much.", "Closing":"Dilation then erosion. Fills small holes, joins nearby components.", "Morphological Gradient":"Dilation - Erosion. Produces thick edges/boundaries. Detects transitions.", "Top Hat":"Original - Opening. Extracts bright features smaller than SE on uneven background.", "Black Hat":"Closing - Original. Extracts dark features and holes smaller than SE." }},
+
+  { id:"gabor",      icon:"🌀", label:"Gabor Filters and Texture",      color:"#ff9f1c",
+    topics:["Gabor 0deg","Gabor 45deg","Gabor 90deg","Gabor 135deg","Gabor Energy","Multi-scale Low","Multi-scale Mid","Multi-scale High","Texture Seg 2","Texture Seg 4","Gabor Magnitude","Phase Response"],
+    theory:{ "Gabor Filter":"Joint spatial-frequency analysis. g(x,y)=Gaussian*sinusoid. Mimics V1 orientation-selective cells in visual cortex.", "Gabor Energy":"sqrt(even^2+odd^2). Phase-invariant texture measure. Used in biometrics, texture classification.", "Multi-scale":"Apply Gabor at multiple frequencies. Low=coarse texture, high=fine texture. Scale-space analysis.", "Texture Segmentation":"K-means clustering on Gabor energy features. Groups regions with similar texture statistics." }},
+
+  { id:"opticalflow",icon:"💨", label:"Optical Flow",                   color:"#48cae4",
+    topics:["Lucas-Kanade Sim","Horn-Schunck Sim","Flow Vectors","Magnitude Map","Direction Map","Temporal Diff","Frame Blend","Motion Edges","Flow HSV","Sparse Flow","Dense Flow","Flow Warp"],
+    theory:{ "Optical Flow":"Apparent pixel motion between frames. Constraint: I_x*u + I_y*v + I_t = 0. Ill-posed without additional assumption.", "Lucas-Kanade":"Assumes constant flow in local window. Solves 2x2 least-squares system. Fast, but fails at motion boundaries.", "Horn-Schunck":"Global smoothness regularization. Minimizes data+smoothness terms. Dense flow but blurs motion edges.", "Temporal Difference":"I(t)-I(t-1). Simple motion detector. Simulated here via blurred/original difference." }},
+
   { id:"matching",   icon:"🔗", label:"Feature Matching & Model Fitting", color:"#e9c46a",
     topics:["Upload & Match","BF Match Viz","Ratio Test Viz","RANSAC Demo","Homography Warp","Similarity Map","Corner Response","Distance Map","Edge+Corner","Template Match","KD-tree Sim","LSH Sim"],
     theory:{ "BF Matching":"Compare all descriptor pairs. O(N^2). Exact. Use Hamming for binary, L2 for float.", "Ratio Test":"Accept if d1/d2<0.7-0.8. Rejects ambiguous matches. Lowe's key insight.", "RANSAC":"Random sample->fit->inliers->repeat. Handles up to 50% outliers.", "KD-Tree":"Binary space partition. O(log N) approx NN. Best for d<20 dimensions.", "LSH":"Hash similar items to same bucket. O(1) approx NN for high-dimensional binary descriptors.", "EMD":"Earth Mover's Distance. Min transport cost between distributions." }},
@@ -79,6 +92,12 @@ function convolve(gray, W, H, kernel) {
   return res;
 }
 
+
+// Safe min/max for large arrays (avoids call stack overflow from spread)
+function arrMin(a){let m=Infinity;for(let i=0;i<a.length;i++) if(a[i]<m) m=a[i];return m;}
+function arrMax(a){let m=-Infinity;for(let i=0;i<a.length;i++) if(a[i]>m) m=a[i];return m;}
+function arrMinFiltered(a,fn){let m=Infinity;for(let i=0;i<a.length;i++){const v=a[i];if(fn(v)&&v<m)m=v;}return m;}
+
 function processImg(src, modId, topic, params={}) {
   const {width:W, height:H, data} = src;
   const out = new Uint8ClampedArray(data);
@@ -88,7 +107,7 @@ function processImg(src, modId, topic, params={}) {
 
   const setG=(buf,abs=false)=>{
     const vals=abs?buf.map(Math.abs):buf;
-    const mn=Math.min(...vals),mx=Math.max(...vals),rng=mx-mn||1;
+    const mn=arrMin(vals),mx=arrMax(vals),rng=mx-mn||1;
     for(let i=0;i<N;i++){const v=Math.round((vals[i]-mn)/rng*255); out[i*4]=out[i*4+1]=out[i*4+2]=v; out[i*4+3]=255;}
   };
 
@@ -109,7 +128,7 @@ function processImg(src, modId, topic, params={}) {
       else if(topic==="Bit-plane Slicing"){v=((Math.round(gray[i])>>plane)&1)*255;out[i*4]=out[i*4+1]=out[i*4+2]=v;}
       else if(topic==="Thresholding"){v=gray[i]>=T?255:0;out[i*4]=out[i*4+1]=out[i*4+2]=v;}
       else if(topic==="Sigmoid"){v=Math.round(255/(1+Math.exp(-k*(gray[i]-128))));out[i*4]=out[i*4+1]=out[i*4+2]=v;}
-      else if(topic==="Histogram Stretch"){const mn2=Math.min(...gray),mx2=Math.max(...gray),rng2=mx2-mn2||1;v=Math.round((gray[i]-mn2)/rng2*255);out[i*4]=out[i*4+1]=out[i*4+2]=v;}
+      else if(topic==="Histogram Stretch"){const mn2=arrMin(gray),mx2=arrMax(gray),rng2=mx2-mn2||1;v=Math.round((gray[i]-mn2)/rng2*255);out[i*4]=out[i*4+1]=out[i*4+2]=v;}
       out[i*4+3]=255;
     }
   }
@@ -122,7 +141,7 @@ function processImg(src, modId, topic, params={}) {
       // Show grayscale with histogram overlay baked in
       for(let i=0;i<N;i++){const v=Math.round(gray[i]);out[i*4]=out[i*4+1]=out[i*4+2]=v;out[i*4+3]=255;}
       // Draw histogram bars at bottom of image
-      const maxH=Math.max(...hist)||1;
+      const maxH=arrMax(hist)||1;
       const barH=Math.min(H/3,80);
       for(let x=0;x<W;x++){
         const bin=Math.floor(x/W*256), bh=Math.round(hist[bin]/maxH*barH);
@@ -387,7 +406,7 @@ function processImg(src, modId, topic, params={}) {
       HL[y*w2+x]=(v00+v01-v10-v11)/2;HH[y*w2+x]=(v00-v01-v10+v11)/2;
     }
     const upscale=(band,bw,bh)=>{
-      const mn2=Math.min(...band),mx2=Math.max(...band),rng2=mx2-mn2||1;
+      const mn2=arrMin(band),mx2=arrMax(band),rng2=mx2-mn2||1;
       for(let y=0;y<H;y++) for(let x=0;x<W;x++){
         const bx=Math.min(Math.floor(x/W*bw),bw-1),by=Math.min(Math.floor(y/H*bh),bh-1);
         const v=Math.round((band[by*bw+bx]-mn2)/rng2*255);
@@ -405,7 +424,7 @@ function processImg(src, modId, topic, params={}) {
       for(let y=0;y<H;y++) for(let x=0;x<W;x++){
         const inLL=x<w2&&y<h2,inLH=x>=w2&&y<h2,inHL=x<w2&&y>=h2;
         let v=Math.round(gray[y*W+x]);
-        if(inLL){const bx=Math.floor(x/w2*w2),by=Math.floor(y/h2*h2);const ll2=LL[Math.min(by,h2-1)*w2+Math.min(bx,w2-1)];v=Math.round((ll2-Math.min(...LL))/(Math.max(...LL)-Math.min(...LL)||1)*255);}
+        if(inLL){const bx=Math.floor(x/w2*w2),by=Math.floor(y/h2*h2);const ll2=LL[Math.min(by,h2-1)*w2+Math.min(bx,w2-1)];v=Math.round((ll2-arrMin(LL))/(arrMax(LL)-arrMin(LL)||1)*255);}
         else if(inLH){const bx=Math.min(x-w2,w2-1),by=Math.min(y,h2-1);v=Math.min(255,Math.round(Math.abs(LH[by*w2+bx])*3));}
         else if(inHL){const bx=Math.min(x,w2-1),by=Math.min(y-h2,h2-1);v=Math.min(255,Math.round(Math.abs(HL[by*w2+bx])*3));}
         else{const bx=Math.min(x-w2,w2-1),by=Math.min(y-h2,h2-1);v=Math.min(255,Math.round(Math.abs(HH[by*w2+bx])*3));}
@@ -433,7 +452,7 @@ function processImg(src, modId, topic, params={}) {
         for(let y=0;y<bs;y++) for(let x=0;x<bs;x++){const px=Math.min(bx2*bs+x,W-1),py=Math.min(by*bs+y,H-1);blk.push(gray[py*W+px]-128);}
         const dct=new Float32Array(64);
         for(let u=0;u<8;u++) for(let v2=0;v2<8;v2++){let sum2=0;const cu=u===0?1/Math.SQRT2:1,cv2=v2===0?1/Math.SQRT2:1;for(let x=0;x<8;x++) for(let y=0;y<8;y++) sum2+=blk[y*8+x]*Math.cos((2*x+1)*u*Math.PI/16)*Math.cos((2*y+1)*v2*Math.PI/16);dct[v2*8+u]=0.25*cu*cv2*sum2;}
-        const mn2=Math.min(...dct),mx2=Math.max(...dct),rng2=mx2-mn2||1;
+        const mn2=arrMin(dct),mx2=arrMax(dct),rng2=mx2-mn2||1;
         for(let y=0;y<bs;y++) for(let x=0;x<bs;x++){const px=Math.min(bx2*bs+x,W-1),py=Math.min(by*bs+y,H-1);const v=Math.round((dct[y*8+x]-mn2)/rng2*255);out[(py*W+px)*4]=out[(py*W+px)*4+1]=out[(py*W+px)*4+2]=v;out[(py*W+px)*4+3]=255;}
       }
     } else if(topic==="Quantize HQ"){for(let i=0;i<N;i++){const v=Math.round(Math.round(gray[i]/8)*8);out[i*4]=out[i*4+1]=out[i*4+2]=v;out[i*4+3]=255;}}
@@ -513,15 +532,15 @@ function processImg(src, modId, topic, params={}) {
     else if(topic==="Distance Transform"){
       const bin2=gray.map(v=>v>128?0:Infinity);
       for(let y=0;y<H;y++) for(let x=0;x<W;x++){if(bin2[y*W+x]===0) continue;let minD=Infinity;for(let r=1;r<20&&minD===Infinity;r++) for(let dy=-r;dy<=r&&minD===Infinity;dy++) for(let dx=-r;dx<=r;dx++){const nx=x+dx,ny=y+dy;if(nx>=0&&nx<W&&ny>=0&&ny<H&&gray[ny*W+nx]<=128){minD=Math.sqrt((dx*dx)+(dy*dy));break;}}bin2[y*W+x]=Math.min(minD,20);}
-      const mx2=Math.max(...bin2.filter(isFinite))||1;
+      const mx2=arrMax(bin2.filter(isFinite))||1;
       for(let i=0;i<N;i++){const v=Math.round((bin2[i]||0)/mx2*255);out[i*4]=v;out[i*4+1]=Math.round(255-v);out[i*4+2]=0;out[i*4+3]=255;}
     } else if(topic==="Convex Hull Viz"){for(let i=0;i<N;i++){const x=i%W,y=Math.floor(i/W),t=(x/W+y/H)/2;out[i*4]=Math.round(gray[i]*t);out[i*4+1]=Math.round(gray[i]*(1-t));out[i*4+2]=Math.round(gray[i]*0.5);out[i*4+3]=255;}}
     else if(topic==="Moment Map"){let m00=0,m10=0,m01=0;for(let y=0;y<H;y++) for(let x=0;x<W;x++){const v=gray[y*W+x]/255;m00+=v;m10+=x*v;m01+=y*v;}const cx2=m00>0?m10/m00:W/2,cy2=m00>0?m01/m00:H/2;for(let i=0;i<N;i++){const x=i%W,y=Math.floor(i/W),d=Math.sqrt((x-cx2)*(x-cx2)+(y-cy2)*(y-cy2));out[i*4]=Math.round(gray[i]);out[i*4+1]=Math.round(gray[i]);out[i*4+2]=Math.round(gray[i]);if(d<5){out[i*4]=255;out[i*4+1]=0;out[i*4+2]=0;}out[i*4+3]=255;}}
     else if(topic==="GLCM Texture"){
       const GLCM=new Float32Array(256*256);for(let y=0;y<H;y++) for(let x=0;x<W-1;x++){const a=Math.round(gray[y*W+x]),b=Math.round(gray[y*W+x+1]);GLCM[a*256+b]++;GLCM[b*256+a]++;}
-      const maxG=Math.max(...GLCM)||1;for(let i=0;i<N;i++){const gv=Math.round(gray[i]);let energy=0;for(let j=Math.max(0,gv-10);j<Math.min(256,gv+10);j++) energy+=GLCM[gv*256+j];const v=Math.min(255,Math.round(energy/maxG*5000));out[i*4]=v;out[i*4+1]=Math.round(gray[i]);out[i*4+2]=255-v;out[i*4+3]=255;}
+      const maxG=arrMax(GLCM)||1;for(let i=0;i<N;i++){const gv=Math.round(gray[i]);let energy=0;for(let j=Math.max(0,gv-10);j<Math.min(256,gv+10);j++) energy+=GLCM[gv*256+j];const v=Math.min(255,Math.round(energy/maxG*5000));out[i*4]=v;out[i*4+1]=Math.round(gray[i]);out[i*4+2]=255-v;out[i*4+3]=255;}
     } else if(topic==="Region Props"){for(let i=0;i<N;i++){const x=i%W,y=Math.floor(i/W),d=Math.sqrt(((x-W/2)*(x-W/2))+((y-H/2)*(y-H/2)))/(Math.min(W,H)/2);const v=Math.round(gray[i]*(1-d*0.4));out[i*4]=v;out[i*4+1]=Math.round(v*(1-d));out[i*4+2]=Math.round(255*d);out[i*4+3]=255;}}
-    else if(topic==="Zernike Viz"){for(let i=0;i<N;i++){const x=(i%W-W/2)/(W/2),y=(Math.floor(i/W)-H/2)/(H/2),r=Math.sqrt((x*x)+(y*y)),theta=Math.atan2(y,x);const v=Math.round(Math.abs(Math.cos(3*theta)*Math.exp-(r*r))*255);out[i*4]=v;out[i*4+1]=Math.round(gray[i]*0.5);out[i*4+2]=255-v;out[i*4+3]=255;}}
+    else if(topic==="Zernike Viz"){for(let i=0;i<N;i++){const x=(i%W-W/2)/(W/2),y=(Math.floor(i/W)-H/2)/(H/2),r=Math.sqrt((x*x)+(y*y)),theta=Math.atan2(y,x);const v=Math.round(Math.abs(Math.cos(3*theta)*Math.exp(-(r*r)))*255);out[i*4]=v;out[i*4+1]=Math.round(gray[i]*0.5);out[i*4+2]=255-v;out[i*4+3]=255;}}
     else if(topic==="Fourier Desc Viz"){const gx=convolve(gray,W,H,KX),gy=convolve(gray,W,H,KY);for(let i=0;i<N;i++){const mag=Math.min(255,Math.sqrt(gx[i]*gx[i]+gy[i]*gy[i]));out[i*4]=Math.round(mag);out[i*4+1]=Math.round(gray[i]*0.3);out[i*4+2]=Math.round(255-mag);out[i*4+3]=255;}}
     else if(topic==="Chain Code Viz"){
       const bin3=gray.map(v=>v>128?1:0);const dirs=[[1,0],[1,-1],[0,-1],[-1,-1],[-1,0],[-1,1],[0,1],[1,1]];
@@ -538,7 +557,7 @@ function processImg(src, modId, topic, params={}) {
     const Ix=convolve(gray,W,H,KX),Iy=convolve(gray,W,H,KY);
     if(topic==="Harris Corners"||topic==="Shi-Tomasi"){
       const R=new Float32Array(N);for(let i=0;i<N;i++){const A=Ix[i]*Ix[i],B=Iy[i]*Iy[i],C=Ix[i]*Iy[i];R[i]=A*B-(C*C)-0.05*((A+B)*(A+B));}
-      const maxR=Math.max(...R.map(Math.abs))||1;
+      const maxR=arrMax(R.map(Math.abs))||1;
       for(let i=0;i<N;i++){out[i*4]=Math.round(data[i*4]);out[i*4+1]=Math.round(data[i*4+1]);out[i*4+2]=Math.round(data[i*4+2]);if(R[i]>maxR*0.1){out[i*4]=255;out[i*4+1]=0;out[i*4+2]=0;}out[i*4+3]=255;}
     } else if(topic==="FAST Detect"){
       for(let y=3;y<H-3;y++) for(let x=3;x<W-3;x++){
@@ -562,14 +581,194 @@ function processImg(src, modId, topic, params={}) {
     } else if(topic==="Dense Grid"){for(let i=0;i<N;i++){const x=i%W,y=Math.floor(i/W),onG=(x%16===8||y%16===8);out[i*4]=onG?255:Math.round(data[i*4]);out[i*4+1]=onG?200:Math.round(data[i*4+1]);out[i*4+2]=onG?0:Math.round(data[i*4+2]);out[i*4+3]=255;}}
     else if(topic==="ORB-like Keypoints"){
       const R=new Float32Array(N);for(let i=0;i<N;i++){const A=Ix[i]*Ix[i],B=Iy[i]*Iy[i],C=Ix[i]*Iy[i];R[i]=A*B-(C*C)-0.05*((A+B)*(A+B));}
-      const maxR=Math.max(...R.map(Math.abs))||1;
+      const maxR=arrMax(R.map(Math.abs))||1;
       for(let i=0;i<N;i++){const x=i%W,y=Math.floor(i/W);const isK=R[i]>maxR*0.12;out[i*4]=isK?255:Math.round(data[i*4]);out[i*4+1]=isK?165:Math.round(data[i*4+1]);out[i*4+2]=isK?0:Math.round(data[i*4+2]);out[i*4+3]=255;}
     } else if(topic==="Feature Heatmap"){
       const R=new Float32Array(N);for(let i=0;i<N;i++){const A=Ix[i]*Ix[i],B=Iy[i]*Iy[i],C=Ix[i]*Iy[i];R[i]=A*B-(C*C)-0.05*((A+B)*(A+B));}
-      const mn2=Math.min(...R),mx2=Math.max(...R)||1;
+      const mn2=arrMin(R),mx2=arrMax(R)||1;
       for(let i=0;i<N;i++){const t=(R[i]-mn2)/(mx2-mn2);out[i*4]=Math.round(t*255);out[i*4+1]=Math.round((1-t)*200);out[i*4+2]=Math.round((1-t)*255);out[i*4+3]=255;}
     }
   }
+
+  // -- MORPHOLOGY --
+  else if(modId==="morphology"){
+    const se=[[1,1,1],[1,1,1],[1,1,1]]; // 3x3 square SE
+    const bin=gray.map(v=>v>128?255:0);
+    const erode=(src)=>{
+      const res=new Float32Array(W*H);
+      for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+        let mn=255;
+        for(let ky=-1;ky<=1;ky++) for(let kx=-1;kx<=1;kx++){
+          const px=Math.min(Math.max(x+kx,0),W-1),py=Math.min(Math.max(y+ky,0),H-1);
+          if(se[ky+1][kx+1]) mn=Math.min(mn,src[py*W+px]);
+        }
+        res[y*W+x]=mn;
+      }
+      return res;
+    };
+    const dilate=(src)=>{
+      const res=new Float32Array(W*H);
+      for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+        let mx=0;
+        for(let ky=-1;ky<=1;ky++) for(let kx=-1;kx<=1;kx++){
+          const px=Math.min(Math.max(x+kx,0),W-1),py=Math.min(Math.max(y+ky,0),H-1);
+          if(se[ky+1][kx+1]) mx=Math.max(mx,src[py*W+px]);
+        }
+        res[y*W+x]=mx;
+      }
+      return res;
+    };
+    const grayF=new Float32Array(gray);
+    let result;
+    if(topic==="Erosion") result=erode(grayF);
+    else if(topic==="Dilation") result=dilate(grayF);
+    else if(topic==="Opening"){const e=erode(grayF);result=dilate(e);}
+    else if(topic==="Closing"){const d=dilate(grayF);result=erode(d);}
+    else if(topic==="Morphological Gradient"){const e=erode(grayF),d=dilate(grayF);result=d.map((v,i)=>Math.abs(v-e[i]));}
+    else if(topic==="Top Hat"){const e=erode(grayF),op=dilate(e);result=grayF.map((v,i)=>Math.max(0,v-op[i]));}
+    else if(topic==="Black Hat"){const d=dilate(grayF),cl=erode(d);result=cl.map((v,i)=>Math.max(0,v-grayF[i]));}
+    else if(topic==="Thinning"){
+      result=new Float32Array(grayF);
+      for(let iter=0;iter<3;iter++){
+        const tmp=new Float32Array(result);
+        for(let y=1;y<H-1;y++) for(let x=1;x<W-1;x++){
+          if(tmp[y*W+x]<128) continue;
+          const n=[tmp[(y-1)*W+x],tmp[(y-1)*W+x+1],tmp[y*W+x+1],tmp[(y+1)*W+x+1],tmp[(y+1)*W+x],tmp[(y+1)*W+x-1],tmp[y*W+x-1],tmp[(y-1)*W+x-1]];
+          const p=n.filter(v=>v>=128).length;
+          if(p>=2&&p<=6) result[y*W+x]=0;
+        }
+      }
+    }
+    else if(topic==="Thickening"){
+      result=new Float32Array(grayF);
+      for(let iter=0;iter<3;iter++){
+        const tmp=new Float32Array(result);
+        for(let y=1;y<H-1;y++) for(let x=1;x<W-1;x++){
+          if(tmp[y*W+x]>=128) continue;
+          const n=[tmp[(y-1)*W+x],tmp[y*W+x+1],tmp[(y+1)*W+x],tmp[y*W+x-1]];
+          if(n.filter(v=>v>=128).length>=2) result[y*W+x]=255;
+        }
+      }
+    }
+    else if(topic==="Hit-or-Miss"){
+      result=new Float32Array(W*H);
+      const hit=[[0,1,0],[1,1,1],[0,1,0]];
+      const miss=[[1,0,1],[0,0,0],[1,0,1]];
+      for(let y=1;y<H-1;y++) for(let x=1;x<W-1;x++){
+        let ok=true;
+        for(let ky=-1;ky<=1&&ok;ky++) for(let kx=-1;kx<=1&&ok;kx++){
+          const v=grayF[(y+ky)*W+(x+kx)];
+          if(hit[ky+1][kx+1]&&v<128) ok=false;
+          if(miss[ky+1][kx+1]&&v>=128) ok=false;
+        }
+        result[y*W+x]=ok?255:0;
+      }
+    }
+    else result=grayF;
+    const mn2=arrMin(result),mx2=arrMax(result),rng2=mx2-mn2||1;
+    for(let i=0;i<N;i++){const v=Math.round((result[i]-mn2)/rng2*255);out[i*4]=v;out[i*4+1]=v;out[i*4+2]=v;out[i*4+3]=255;}
+  }
+
+  // -- GABOR --
+  else if(modId==="gabor"){
+    const gaborKernel=(theta,freq,sigma)=>{
+      const k=15,half=7,kern=[];
+      for(let y=-half;y<=half;y++){
+        const row=[];
+        for(let x=-half;x<=half;x++){
+          const xp=x*Math.cos(theta)+y*Math.sin(theta);
+          const yp=-x*Math.sin(theta)+y*Math.cos(theta);
+          const env=Math.exp(-(xp*xp+yp*yp)/(2*sigma*sigma));
+          row.push(env*Math.cos(2*Math.PI*freq*xp));
+        }
+        kern.push(row);
+      }
+      return kern;
+    };
+    const angles={
+      "Gabor 0deg":0,"Gabor 45deg":Math.PI/4,"Gabor 90deg":Math.PI/2,"Gabor 135deg":3*Math.PI/4,
+      "Gabor Magnitude":0,"Phase Response":0
+    };
+    const freqs={"Multi-scale Low":0.05,"Multi-scale Mid":0.1,"Multi-scale High":0.2};
+    if(topic==="Gabor Energy"){
+      const r0=convolve(gray,W,H,gaborKernel(0,0.1,4));
+      const r90=convolve(gray,W,H,gaborKernel(Math.PI/2,0.1,4));
+      const energy=r0.map((v,i)=>Math.sqrt(v*v+r90[i]*r90[i]));
+      setG(energy);
+    } else if(topic==="Texture Seg 2"||topic==="Texture Seg 4"){
+      const k2=topic==="Texture Seg 2"?2:4;
+      const energy0=convolve(gray,W,H,gaborKernel(0,0.1,4));
+      const energy90=convolve(gray,W,H,gaborKernel(Math.PI/2,0.1,4));
+      const feat=energy0.map((v,i)=>Math.sqrt(v*v+energy90[i]*energy90[i]));
+      let centers=[...Array(k2)].map((_,i2)=>20+i2*(200/k2));
+      for(let iter=0;iter<10;iter++){const sums=new Array(k2).fill(0),cnts=new Array(k2).fill(0);for(let i2=0;i2<N;i2++){let best=0,bd=Infinity;centers.forEach((c,j)=>{const d=Math.abs(feat[i2]-c);if(d<bd){bd=d;best=j;}});sums[best]+=feat[i2];cnts[best]++;}centers=centers.map((c,j)=>cnts[j]>0?sums[j]/cnts[j]:c);}
+      const cols=[[255,100,50],[50,200,255],[200,255,50],[255,50,200]];
+      for(let i2=0;i2<N;i2++){let best=0,bd=Infinity;centers.forEach((c,j)=>{const d=Math.abs(feat[i2]-c);if(d<bd){bd=d;best=j;}});const c=cols[best%4];out[i2*4]=c[0];out[i2*4+1]=c[1];out[i2*4+2]=c[2];out[i2*4+3]=255;}
+    } else {
+      const theta=angles[topic]!==undefined?angles[topic]:(freqs[topic]?0:0);
+      const freq=freqs[topic]||0.1;
+      const kern=gaborKernel(theta,freq,4);
+      const res=convolve(gray,W,H,kern);
+      setG(res,topic==="Phase Response");
+    }
+  }
+
+  // -- OPTICAL FLOW --
+  else if(modId==="opticalflow"){
+    // Simulate optical flow using spatial gradients as proxy
+    const Ix=convolve(gray,W,H,[[-1,0,1],[-2,0,2],[-1,0,1]]);
+    const Iy=convolve(gray,W,H,[[-1,-2,-1],[0,0,0],[1,2,1]]);
+    // Simulate It using local gradient divergence
+    const It=convolve(gray,W,H,[[1,2,1],[2,4,2],[1,2,1]].map(r=>r.map(v=>v/16))).map((v,i)=>v-gray[i]);
+    const winSz=8;
+    const u=new Float32Array(N),v2=new Float32Array(N);
+    if(topic==="Lucas-Kanade Sim"||topic==="Flow Vectors"||topic==="Sparse Flow"){
+      for(let y=winSz;y<H-winSz;y++) for(let x=winSz;x<W-winSz;x++){
+        let Ixx=0,Iyy=0,Ixy=0,Ixt=0,Iyt=0;
+        for(let dy=-winSz;dy<=winSz;dy++) for(let dx=-winSz;dx<=winSz;dx++){
+          const i2=(y+dy)*W+(x+dx);
+          Ixx+=Ix[i2]*Ix[i2];Iyy+=Iy[i2]*Iy[i2];Ixy+=Ix[i2]*Iy[i2];
+          Ixt+=Ix[i2]*It[i2];Iyt+=Iy[i2]*It[i2];
+        }
+        const det=Ixx*Iyy-Ixy*Ixy||0.001;
+        u[y*W+x]=-(Iyy*Ixt-Ixy*Iyt)/det;
+        v2[y*W+x]=-(Ixx*Iyt-Ixy*Ixt)/det;
+      }
+    } else {
+      for(let i2=0;i2<N;i2++){const det=Ix[i2]*Ix[i2]*Iy[i2]*Iy[i2]-(Ix[i2]*Iy[i2])*(Ix[i2]*Iy[i2])||0.001;u[i2]=-(Iy[i2]*Iy[i2]*Ix[i2]*It[i2])/det;v2[i2]=-(Ix[i2]*Ix[i2]*Iy[i2]*It[i2])/det;}
+    }
+    const maxFlow=Math.max(arrMax(u.map(Math.abs)),arrMax(v2.map(Math.abs)))||1;
+    if(topic==="Magnitude Map"||topic==="Dense Flow"){
+      for(let i2=0;i2<N;i2++){const mag=Math.min(255,Math.round(Math.sqrt(u[i2]*u[i2]+v2[i2]*v2[i2])/maxFlow*255));out[i2*4]=mag;out[i2*4+1]=Math.round(mag*0.5);out[i2*4+2]=255-mag;out[i2*4+3]=255;}
+    } else if(topic==="Direction Map"){
+      for(let i2=0;i2<N;i2++){const a=(Math.atan2(v2[i2],u[i2])+Math.PI)/(2*Math.PI);out[i2*4]=Math.round(a*255);out[i2*4+1]=Math.round((1-a)*200);out[i2*4+2]=128;out[i2*4+3]=255;}
+    } else if(topic==="Flow HSV"){
+      for(let i2=0;i2<N;i2++){const a=(Math.atan2(v2[i2],u[i2])+Math.PI)/(2*Math.PI);const mag=Math.min(1,Math.sqrt(u[i2]*u[i2]+v2[i2]*v2[i2])/maxFlow);const h=a*360,s=mag,vv=0.8+mag*0.2;const c2=vv*s,x2=c2*(1-Math.abs((h/60)%2-1)),m=vv-c2;let r2=0,g2=0,b2=0;if(h<60){r2=c2;g2=x2;}else if(h<120){r2=x2;g2=c2;}else if(h<180){g2=c2;b2=x2;}else if(h<240){g2=x2;b2=c2;}else if(h<300){r2=x2;b2=c2;}else{r2=c2;b2=x2;}out[i2*4]=Math.round((r2+m)*255);out[i2*4+1]=Math.round((g2+m)*255);out[i2*4+2]=Math.round((b2+m)*255);out[i2*4+3]=255;}
+    } else if(topic==="Temporal Diff"||topic==="Frame Blend"){
+      const blurred=convolve(gray,W,H,[[1,2,1],[2,4,2],[1,2,1]].map(r=>r.map(v=>v/16)));
+      for(let i2=0;i2<N;i2++){const d=Math.abs(gray[i2]-blurred[i2])*3;const v=Math.min(255,Math.round(d));out[i2*4]=v;out[i2*4+1]=Math.round(gray[i2]*0.5);out[i2*4+2]=255-v;out[i2*4+3]=255;}
+    } else if(topic==="Motion Edges"){
+      for(let i2=0;i2<N;i2++){const mag=Math.min(255,Math.round(Math.sqrt(u[i2]*u[i2]+v2[i2]*v2[i2])/maxFlow*3*255));const edge=Math.min(255,Math.round(Math.sqrt(Ix[i2]*Ix[i2]+Iy[i2]*Iy[i2])));out[i2*4]=Math.round(edge*0.4+mag*0.6);out[i2*4+1]=Math.round(edge);out[i2*4+2]=0;out[i2*4+3]=255;}
+    } else if(topic==="Flow Vectors"||topic==="Lucas-Kanade Sim"||topic==="Sparse Flow"){
+      for(let i2=0;i2<N;i2++){out[i2*4]=Math.round(data[i2*4]*0.4);out[i2*4+1]=Math.round(data[i2*4+1]*0.4);out[i2*4+2]=Math.round(data[i2*4+2]*0.4);out[i2*4+3]=255;}
+      // Will overlay arrows after
+    } else if(topic==="Horn-Schunck Sim"){
+      const smooth=convolve(new Float32Array(u),W,H,MEAN);
+      for(let i2=0;i2<N;i2++){const mag=Math.min(255,Math.round(Math.abs(smooth[i2])/maxFlow*255*3));out[i2*4]=mag;out[i2*4+1]=Math.round((1-mag/255)*200);out[i2*4+2]=Math.round(gray[i2]*0.5);out[i2*4+3]=255;}
+    } else if(topic==="Flow Warp"){
+      const warped=new Uint8ClampedArray(W*H*4);
+      for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+        const sx=Math.max(0,Math.min(W-1,Math.round(x+u[y*W+x]*5)));
+        const sy=Math.max(0,Math.min(H-1,Math.round(y+v2[y*W+x]*5)));
+        const si=(sy*W+sx)*4,di=(y*W+x)*4;
+        warped[di]=data[si];warped[di+1]=data[si+1];warped[di+2]=data[si+2];warped[di+3]=255;
+      }
+      return new ImageData(warped,W,H);
+    } else {
+      for(let i2=0;i2<N;i2++){const v=Math.min(255,Math.round(Math.sqrt(u[i2]*u[i2]+v2[i2]*v2[i2])/maxFlow*255));out[i2*4]=v;out[i2*4+1]=0;out[i2*4+2]=255-v;out[i2*4+3]=255;}
+    }
+  }
+
 
   // -- MATCHING --
   else if(modId==="matching"){
@@ -577,13 +776,13 @@ function processImg(src, modId, topic, params={}) {
     const Ix=convolve(gray,W,H,KX),Iy=convolve(gray,W,H,KY);
     if(topic==="Ratio Test Viz"||topic==="Corner Response"){
       const R=new Float32Array(N);for(let i=0;i<N;i++){const A=Ix[i]*Ix[i],B=Iy[i]*Iy[i],C=Ix[i]*Iy[i];R[i]=A*B-(C*C)-0.05*((A+B)*(A+B));}
-      const mn2=Math.min(...R),mx2=Math.max(...R)||1;
+      const mn2=arrMin(R),mx2=arrMax(R)||1;
       for(let i=0;i<N;i++){const t=(R[i]-mn2)/(mx2-mn2);out[i*4]=Math.round(t>0.1?t*255:0);out[i*4+1]=Math.round(gray[i]*0.2);out[i*4+2]=Math.round(t<0.1?(1-t)*255:0);out[i*4+3]=255;}
     } else if(topic==="RANSAC Demo"){for(let i=0;i<N;i++){const x=i%W,y=Math.floor(i/W),lineY=H/2+Math.sin(x/W*Math.PI*2)*40,inl=Math.abs(y-lineY)<10;out[i*4]=inl?0:Math.round(gray[i]);out[i*4+1]=inl?200:Math.round(gray[i]);out[i*4+2]=inl?100:Math.round(gray[i]);out[i*4+3]=255;}}
     else if(topic==="Homography Warp"){const res2=new Uint8ClampedArray(W*H*4);for(let y=0;y<H;y++) for(let x=0;x<W;x++){const sx=x+Math.sin(y/H*Math.PI)*25,sy=y+Math.cos(x/W*Math.PI)*25;const px=Math.max(0,Math.min(W-1,Math.round(sx))),py=Math.max(0,Math.min(H-1,Math.round(sy)));const idx=(y*W+x)*4,si=(py*W+px)*4;res2[idx]=data[si];res2[idx+1]=data[si+1];res2[idx+2]=data[si+2];res2[idx+3]=255;}return new ImageData(res2,W,H);}
     else if(topic==="Similarity Map"){const cx=W/2,cy=H/2;for(let i=0;i<N;i++){const x=i%W,y=Math.floor(i/W),d=1-Math.sqrt((x-cx)*(x-cx)+(y-cy)*(y-cy))/Math.sqrt((cx*cx)+(cy*cy)),sim=Math.max(0,d*gray[i]/255);out[i*4]=Math.round(255*sim);out[i*4+1]=Math.round(128*sim);out[i*4+2]=Math.round(255*(1-sim));out[i*4+3]=255;}}
     else if(topic==="Distance Map"){for(let i=0;i<N;i++){const x=i%W,y=Math.floor(i/W),d=Math.sqrt(((x-W/2)*(x-W/2))+((y-H/2)*(y-H/2)))/Math.sqrt(((W/2)*(W/2))+((H/2)*(H/2)));out[i*4]=Math.round(d*255);out[i*4+1]=Math.round((1-d)*255);out[i*4+2]=Math.round(gray[i]);out[i*4+3]=255;}}
-    else if(topic==="Edge+Corner"){const R=new Float32Array(N);for(let i=0;i<N;i++){const A=Ix[i]*Ix[i],B=Iy[i]*Iy[i],C=Ix[i]*Iy[i];R[i]=A*B-(C*C)-0.05*((A+B)*(A+B));}const maxR=Math.max(...R.map(Math.abs))||1;for(let i=0;i<N;i++){const mag=Math.min(255,Math.sqrt(Ix[i]*Ix[i]+Iy[i]*Iy[i])),isC=R[i]>maxR*0.15;out[i*4]=isC?255:Math.round(mag*0.4);out[i*4+1]=Math.round(mag);out[i*4+2]=isC?255:0;out[i*4+3]=255;}}
+    else if(topic==="Edge+Corner"){const R=new Float32Array(N);for(let i=0;i<N;i++){const A=Ix[i]*Ix[i],B=Iy[i]*Iy[i],C=Ix[i]*Iy[i];R[i]=A*B-(C*C)-0.05*((A+B)*(A+B));}const maxR=arrMax(R.map(Math.abs))||1;for(let i=0;i<N;i++){const mag=Math.min(255,Math.sqrt(Ix[i]*Ix[i]+Iy[i]*Iy[i])),isC=R[i]>maxR*0.15;out[i*4]=isC?255:Math.round(mag*0.4);out[i*4+1]=Math.round(mag);out[i*4+2]=isC?255:0;out[i*4+3]=255;}}
     else if(topic==="Template Match"){const bl=convolve(gray,W,H,GAUSS);for(let i=0;i<N;i++){const m=Math.abs(gray[i]-bl[i])<8;out[i*4]=m?255:Math.round(gray[i]);out[i*4+1]=Math.round(gray[i]);out[i*4+2]=m?0:Math.round(gray[i]);out[i*4+3]=255;}}
     else if(topic==="KD-tree Sim"){for(let i=0;i<N;i++){const x=i%W,y=Math.floor(i/W),sector=Math.floor(x/(W/4))+Math.floor(y/(H/4))*4;const cols=[[255,80,80],[80,255,80],[80,80,255],[255,255,80],[255,80,255],[80,255,255],[200,200,80],[80,200,200]];const c=cols[sector%8];out[i*4]=Math.round(c[0]*gray[i]/255);out[i*4+1]=Math.round(c[1]*gray[i]/255);out[i*4+2]=Math.round(c[2]*gray[i]/255);out[i*4+3]=255;}}
     else if(topic==="LSH Sim"){for(let i=0;i<N;i++){const v=Math.round(gray[i]);const bucket=Math.floor(v/32)*32;const hue=(bucket/256)*360;out[i*4]=Math.round(128+64*Math.sin(hue*Math.PI/180));out[i*4+1]=Math.round(128+64*Math.sin((hue+120)*Math.PI/180));out[i*4+2]=Math.round(128+64*Math.sin((hue+240)*Math.PI/180));out[i*4+3]=255;}}
@@ -602,7 +801,7 @@ function detectHarrisCorners(gray, W, H, maxKP=80){
   const Ix=convolve(gray,W,H,KX),Iy=convolve(gray,W,H,KY);
   const R=new Float32Array(W*H);
   for(let i=0;i<W*H;i++){const A=Ix[i]*Ix[i],B=Iy[i]*Iy[i],C=Ix[i]*Iy[i];R[i]=A*B-(C*C)-0.05*((A+B)*(A+B));}
-  const thresh=Math.max(...R)*0.08;
+  const thresh=arrMax(R)*0.08;
   const kps=[];
   for(let y=5;y<H-5;y++) for(let x=5;x<W-5;x++){
     const r=R[y*W+x];if(r<thresh) continue;
@@ -681,7 +880,7 @@ function Histogram({imageData,label}){
     ctx.clearRect(0,0,W,H);ctx.fillStyle="#06060e";ctx.fillRect(0,0,W,H);
     const r=new Array(256).fill(0),g=new Array(256).fill(0),b=new Array(256).fill(0);
     for(let i=0;i<imageData.data.length;i+=4){r[imageData.data[i]]++;g[imageData.data[i+1]]++;b[imageData.data[i+2]]++;}
-    const mx=Math.max(...r,...g,...b)||1;
+    const mx=Math.max(arrMax(r),arrMax(g),arrMax(b))||1;
     [[r,"#ff4d6d"],[g,"#06d6a0"],[b,"#4cc9f0"]].forEach(([bins,col])=>{
       ctx.beginPath();ctx.strokeStyle=col;ctx.lineWidth=1;ctx.globalAlpha=0.85;
       for(let x=0;x<256;x++){const px=x*(W/256),py=H-2-(bins[x]/mx)*(H-6);x===0?ctx.moveTo(px,py):ctx.lineTo(px,py);}
@@ -916,7 +1115,15 @@ export default function App(){
   const [params,setParams]=useState({gamma:1.0,thresh:128,plane:7,d0:40,n:2,sigma:20,k:0.05,angle:15,scale:1.2,tx:20,ty:20,wavThresh:20});
   const [sidebar,setSidebar]=useState(true);
   const [theory,setTheory]=useState(null);
-  const origRef=useRef(null),procRef=useRef(null),fileRef=useRef(null);
+  const [diffMode,setDiffMode]=useState(false);
+  const [webcamOn,setWebcamOn]=useState(false);
+  const [webcamErr,setWebcamErr]=useState(null);
+  const [quizMode,setQuizMode]=useState(false);
+  const [quizQ,setQuizQ]=useState(null);
+  const [quizScore,setQuizScore]=useState({right:0,wrong:0});
+  const [quizFeedback,setQuizFeedback]=useState(null);
+  const [quizImgUrl,setQuizImgUrl]=useState(null);
+  const origRef=useRef(null),procRef=useRef(null),fileRef=useRef(null),webcamRef=useRef(null),diffRef=useRef(null),streamRef=useRef(null),camFileRef=useRef(null);
 
   const isSpecialReg=activeMod.id==="registration"&&REG_SPECIAL.includes(activeTopic);
   const isSpecialMatch=activeMod.id==="matching"&&MATCH_SPECIAL.includes(activeTopic);
@@ -964,6 +1171,122 @@ export default function App(){
     };reader.readAsDataURL(file);e.target.value="";
   },[]);
 
+  // Stop webcam on unmount
+  useEffect(()=>()=>{if(streamRef.current) streamRef.current.getTracks().forEach(t=>t.stop());},[]);
+
+  // Webcam toggle
+  const toggleWebcam=useCallback(()=>{
+    if(webcamOn){
+      if(streamRef.current) streamRef.current.getTracks().forEach(t=>t.stop());
+      streamRef.current=null;
+      if(webcamRef.current){webcamRef.current.srcObject=null;}
+      setWebcamOn(false);setWebcamErr(null);
+      return;
+    }
+    // Try getUserMedia - works on localhost in Chrome/Firefox
+    const md=navigator.mediaDevices;
+    if(!md){
+      // Fallback: use file input with camera capture
+      camFileRef.current&&camFileRef.current.click();
+      return;
+    }
+    md.getUserMedia({video:{width:{ideal:320},height:{ideal:320},facingMode:"user"}})
+      .then(stream=>{
+        streamRef.current=stream;
+        setWebcamOn(true);
+        // attach after state update via useEffect
+      })
+      .catch(err=>{
+        console.error("Webcam error:",err);
+        setWebcamErr(err.name+": "+err.message);
+        setWebcamOn(true); // show panel with error
+        camFileRef.current&&camFileRef.current.click();
+      });
+  },[webcamOn]);
+
+  // Attach stream to video after webcamOn state update triggers re-render
+  useEffect(()=>{
+    if(webcamOn&&webcamRef.current&&streamRef.current){
+      webcamRef.current.srcObject=streamRef.current;
+      webcamRef.current.play().catch(e=>console.warn("video play:",e));
+    }
+  },[webcamOn]);
+
+  // Handle camera file input fallback
+  const handleCamFile=useCallback((e)=>{
+    const file=e.target.files?.[0];if(!file) return;
+    const reader=new FileReader();
+    reader.onload=(ev)=>{
+      const img=new Image();
+      img.onload=()=>{
+        const c=document.createElement("canvas");c.width=320;c.height=320;
+        c.getContext("2d").drawImage(img,0,0,320,320);
+        setOrigData(c.getContext("2d").getImageData(0,0,320,320));
+      };img.src=ev.target.result;
+    };reader.readAsDataURL(file);e.target.value="";
+  },[]);
+
+  // Capture webcam frame
+  const captureWebcam=useCallback(()=>{
+    if(!webcamRef.current) return;
+    const c=document.createElement("canvas");c.width=320;c.height=320;
+    c.getContext("2d").drawImage(webcamRef.current,0,0,320,320);
+    setOrigData(c.getContext("2d").getImageData(0,0,320,320));
+  },[]);
+
+  // Diff overlay effect
+  useEffect(()=>{
+    if(!diffMode||!origData||!procData||!diffRef.current) return;
+    const c=diffRef.current;c.width=origData.width;c.height=origData.height;
+    const ctx=c.getContext("2d");
+    const diff=new Uint8ClampedArray(origData.width*origData.height*4);
+    for(let i=0;i<origData.width*origData.height;i++){
+      diff[i*4]=Math.abs(origData.data[i*4]-procData.data[i*4]);
+      diff[i*4+1]=Math.abs(origData.data[i*4+1]-procData.data[i*4+1]);
+      diff[i*4+2]=Math.abs(origData.data[i*4+2]-procData.data[i*4+2]);
+      diff[i*4+3]=255;
+    }
+    ctx.putImageData(new ImageData(diff,origData.width,origData.height),0,0);
+  },[diffMode,origData,procData]);
+
+  // Export processed image
+  const exportImage=useCallback(()=>{
+    if(!procRef.current) return;
+    const a=document.createElement("a");a.download=`${activeMod.id}_${activeTopic.replace(/\s/g,"_")}.png`;
+    a.href=procRef.current.toDataURL("image/png");a.click();
+  },[activeMod,activeTopic]);
+
+  // Quiz
+  const startQuiz=useCallback(()=>{
+    const allOps=MODULES.flatMap(m=>m.topics.map(t=>({mod:m,topic:t})));
+    const q=allOps[Math.floor(Math.random()*allOps.length)];
+    // Generate 4 answer choices
+    const correct=q.mod.label+" > "+q.topic;
+    const others=allOps.filter(o=>o.topic!==q.topic).sort(()=>Math.random()-0.5).slice(0,3).map(o=>o.mod.label+" > "+o.topic);
+    const choices=[correct,...others].sort(()=>Math.random()-0.5);
+    setQuizQ({...q,correct,choices});setQuizFeedback(null);setQuizImgUrl(null);
+  },[]);
+
+  const answerQuiz=useCallback((choice)=>{
+    if(!quizQ) return;
+    const ok=choice===quizQ.correct;
+    setQuizScore(s=>({right:s.right+(ok?1:0),wrong:s.wrong+(ok?0:1)}));
+    setQuizFeedback({ok,correct:quizQ.correct});
+    setTimeout(()=>startQuiz(),1500);
+  },[quizQ,startQuiz]);
+
+  // Generate quiz preview image when question changes
+  useEffect(()=>{
+    if(!quizQ) return;
+    const src=origData||{width:160,height:160,data:new Uint8ClampedArray(160*160*4).fill(180)};
+    try{
+      const tmp=processImg(src,quizQ.mod.id,quizQ.topic,{gamma:1,thresh:128,plane:7,d0:40,n:2,sigma:20,k:0.05,angle:15,scale:1.2,tx:20,ty:20,wavThresh:20});
+      const c=document.createElement("canvas");c.width=tmp.width;c.height=tmp.height;
+      c.getContext("2d").putImageData(tmp,0,0);
+      setQuizImgUrl(c.toDataURL());
+    }catch(e){setQuizImgUrl(null);}
+  },[quizQ,origData]);
+
   const selMod=(mod)=>{setActiveMod(mod);setActiveTopic(mod.topics[0]);setTheory(null);};
   const curParams=PARAM_MAP[activeTopic]||[];
 
@@ -994,6 +1317,35 @@ export default function App(){
         .ic{background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.07);border-radius:3px;padding:10px 12px;}
       `}</style>
 
+      {/* QUIZ OVERLAY */}
+      {quizMode&&<div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.88)",zIndex:999,display:"flex",alignItems:"center",justifyContent:"center"}}>
+        <div style={{background:"#0a0a1a",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"32px",maxWidth:560,width:"90%"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+            <div style={{fontSize:14,letterSpacing:3,color:"rgba(255,255,255,0.4)"}}>QUIZ MODE</div>
+            <div style={{display:"flex",gap:16}}>
+              <span style={{color:"#06d6a0",fontSize:13}}>✓ {quizScore.right}</span>
+              <span style={{color:"#f72585",fontSize:13}}>✗ {quizScore.wrong}</span>
+              <button style={{background:"none",border:"1px solid rgba(255,255,255,0.2)",color:"rgba(255,255,255,0.5)",padding:"4px 12px",cursor:"pointer",borderRadius:3,fontFamily:"monospace"}} onClick={()=>{setQuizMode(false);setQuizQ(null);}}>EXIT</button>
+            </div>
+          </div>
+          {quizQ&&<>
+            <div style={{marginBottom:20}}>
+              <div style={{fontSize:10,letterSpacing:2,color:"rgba(255,255,255,0.3)",marginBottom:8}}>IDENTIFY THIS MODULE & OPERATION:</div>
+              <div style={{background:"#06060e",border:"1px solid rgba(255,255,255,0.08)",borderRadius:6,padding:16,textAlign:"center"}}>
+                {quizImgUrl?<img src={quizImgUrl} style={{maxWidth:240,maxHeight:160,borderRadius:4}}/>:<div style={{color:"rgba(255,255,255,0.2)",fontSize:11}}>Loading...</div>}
+              </div>
+            </div>
+            {quizFeedback&&<div style={{marginBottom:16,padding:"10px 16px",borderRadius:4,background:quizFeedback.ok?"rgba(6,214,160,0.12)":"rgba(247,37,133,0.12)",border:`1px solid ${quizFeedback.ok?"#06d6a0":"#f72585"}`,color:quizFeedback.ok?"#06d6a0":"#f72585",fontSize:12}}>
+              {quizFeedback.ok?"Correct!":"Wrong — correct: "+quizFeedback.correct}
+            </div>}
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+              {quizQ.choices.map(c=><button key={c} onClick={()=>answerQuiz(c)} style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.7)",padding:"10px 14px",cursor:"pointer",borderRadius:4,fontFamily:"monospace",fontSize:11,textAlign:"left",transition:"all 0.15s"}}>{c}</button>)}
+            </div>
+          </>}
+          {!quizQ&&<button onClick={startQuiz} style={{width:"100%",padding:"14px",background:"rgba(67,97,238,0.15)",border:"1px solid #4361ee",color:"#4361ee",cursor:"pointer",borderRadius:4,fontFamily:"monospace",fontSize:13,letterSpacing:2}}>START QUIZ</button>}
+        </div>
+      </div>}
+
       {/* SIDEBAR */}
       <div style={{width:sidebar?248:50,minWidth:sidebar?248:50,background:"#06060e",borderRight:"1px solid rgba(255,255,255,0.05)",display:"flex",flexDirection:"column",transition:"width 0.2s",overflow:"hidden"}}>
         <div style={{padding:"13px 10px",borderBottom:"1px solid rgba(255,255,255,0.05)",display:"flex",alignItems:"center",gap:8}}>
@@ -1021,12 +1373,16 @@ export default function App(){
           <span style={{fontSize:20}}>{activeMod.icon}</span>
           <div style={{flex:1}}>
             <div style={{fontFamily:"'Orbitron',monospace",fontSize:13,fontWeight:600,color:activeMod.color,letterSpacing:1}}>{activeMod.label}</div>
-            <div style={{fontSize:10,color:"rgba(255,255,255,0.28)",marginTop:1}}>{activeMod.description}</div>
+            <div style={{fontSize:10,color:"rgba(255,255,255,0.28)",marginTop:1}}>{MODULES.length} modules · {activeMod.topics.length} ops</div>
           </div>
-          {!showRegPanel&&<>
-            <label htmlFor="mainUpload" className="ub" style={{cursor:"pointer"}}>+ UPLOAD IMAGE</label>
+          {!showRegPanel&&<div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+            <label htmlFor="mainUpload" className="ub" style={{cursor:"pointer"}}>⬆ UPLOAD</label>
             <input id="mainUpload" ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={handleUpload}/>
-          </>}
+            <button className="ub" onClick={toggleWebcam} style={{padding:"7px 10px",fontSize:10,background:webcamOn?"rgba(247,37,133,0.15)":"rgba(76,201,240,0.07)",borderColor:webcamOn?"#f72585":"rgba(76,201,240,0.3)",color:webcamOn?"#f72585":"#4cc9f0"}}>{webcamOn?"🔴 STOP":"📷 CAM"}</button>
+            <button className="ub" onClick={exportImage} style={{padding:"7px 10px",fontSize:10,borderColor:"rgba(6,214,160,0.3)",color:"#06d6a0",background:"rgba(6,214,160,0.07)"}}>💾 SAVE</button>
+            <button className="ub" onClick={()=>setDiffMode(d=>!d)} style={{padding:"7px 10px",fontSize:10,borderColor:diffMode?"#f77f00":"rgba(247,127,0,0.3)",color:diffMode?"#f77f00":"rgba(247,127,0,0.6)",background:diffMode?"rgba(247,127,0,0.12)":"transparent"}}>🔀 {diffMode?"DIFF ON":"DIFF"}</button>
+            <button className="ub" onClick={()=>{setQuizMode(true);startQuiz();}} style={{padding:"7px 10px",fontSize:10,borderColor:"rgba(67,97,238,0.4)",color:"#4361ee",background:"rgba(67,97,238,0.07)"}}>🧩 QUIZ</button>
+          </div>}
         </div>
 
         {/* Body */}
@@ -1076,6 +1432,18 @@ export default function App(){
               <RegistrationPanel color={activeMod.color}/>
             ) : (
               <>
+                <div style={{display:webcamOn?"block":"none",marginBottom:12,background:"#06060e",border:"1px solid rgba(247,37,133,0.3)",borderRadius:4,padding:10}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                    <div className="lbl" style={{marginTop:0,color:"#f72585"}}>📷 LIVE WEBCAM</div>
+                    {webcamErr&&<div style={{fontSize:10,color:"#f72585",marginBottom:4}}>{webcamErr}</div>}
+                    <button className="ub" style={{fontSize:10,padding:"4px 10px",borderColor:"rgba(6,214,160,0.4)",color:"#06d6a0"}} onClick={captureWebcam}>⚡ CAPTURE FRAME</button>
+                  </div>
+                  <div style={{display:"flex",justifyContent:"center",background:"#000",borderRadius:3,overflow:"hidden"}}>
+                    <video ref={webcamRef} autoPlay playsInline muted style={{maxWidth:"100%",maxHeight:200,display:"block"}}/>
+                    <input ref={camFileRef} type="file" accept="image/*" capture="camera" style={{display:"none"}} onChange={handleCamFile}/>
+                  </div>
+                </div>
+
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
                   <div>
                     <div className="lbl" style={{marginTop:0}}>Original</div>
@@ -1088,6 +1456,22 @@ export default function App(){
                     <Histogram imageData={procData} label="Processed"/>
                   </div>
                 </div>
+
+                {diffMode&&<div style={{marginTop:8}}>
+                  <div className="lbl" style={{color:"#f77f00"}}>🔀 DIFFERENCE MAP (|Original - Processed|)</div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,alignItems:"start"}}>
+                    <div style={{background:"#06060e",border:"1px solid rgba(247,127,0,0.3)",borderRadius:4,overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",minHeight:100}}>
+                      <canvas ref={diffRef} style={{maxWidth:"100%",maxHeight:260,display:"block"}}/>
+                    </div>
+                    <div style={{fontSize:11,color:"rgba(255,255,255,0.5)",lineHeight:1.8,padding:12,background:"rgba(247,127,0,0.04)",border:"1px solid rgba(247,127,0,0.15)",borderRadius:4}}>
+                      <div style={{color:"#f77f00",marginBottom:6,fontSize:10,letterSpacing:2}}>DIFF ANALYSIS</div>
+                      Bright pixels indicate large differences between original and processed image. Dark areas are unchanged regions. Useful for:<br/>
+                      • Visualizing filter effects<br/>
+                      • Quality assessment<br/>
+                      • Noise pattern analysis
+                    </div>
+                  </div>
+                </div>}
 
                 <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
                   {[{icon:activeMod.icon,t:"Module",v:activeMod.label},{icon:"⚙️",t:"Operation",v:activeTopic},{icon:"📋",t:"In Module",v:activeMod.topics.length+" ops"},{icon:"🗂️",t:"Modules",v:MODULES.length+" total"}].map(c=>(
