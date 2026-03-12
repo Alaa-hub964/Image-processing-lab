@@ -1,67 +1,27 @@
 {
-  "project_meta": {
-    "title": "Digital Image Processing Toolkit",
-    "version": "2.0.0",
-    "author": "Alaa Alowaidi",
-    "institution": "Lovely Professional University"
+  "name": "image-processing-toolkit",
+  "private": true,
+  "version": "2.0.0",
+  "author": "Alaa Alowaidi",
+  "institution": "Lovely Professional University",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
   },
-  "modules": [
-    {
-      "id": "intensity",
-      "label": "Intensity Transformations",
-      "color": "#f72585",
-      "operations": [
-        {
-          "name": "Negative Transform",
-          "math": "s = 255 - r",
-          "quiz": [
-            {
-              "question": "What is the primary use of a Negative Transform?",
-              "options": [
-                "To brighten dark images",
-                "To enhance white detail in dark regions",
-                "To reduce periodic noise",
-                "To perform edge detection"
-              ],
-              "answer": 1
-            }
-          ]
-        },
-        {
-          "name": "Log Transform",
-          "math": "s = c * log(1+r)",
-          "quiz": [
-            {
-              "question": "Which domain commonly uses Log Transformations for visualization?",
-              "options": [
-                "Spatial Domain",
-                "Frequency Domain",
-                "Time Domain",
-                "Color Domain"
-              ],
-              "answer": 1
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "registration",
-      "label": "Geometric & Registration",
-      "color": "#06d6a0",
-      "operations": [
-        {
-          "name": "Registration Match",
-          "logic": "Normalized Cross-Correlation",
-          "research_link": "Signature Verification Alignment",
-          "padding_ratio": 0.15
-        }
-      ]
-    }
-  ],
-  "global_settings": {
-    "spatial_padding": 0.15,
-    "default_gamma": 1.0,
-    "webcam_fps": 30
+  "dependencies": {
+    "lucide-react": "^0.344.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.66",
+    "@types/react-dom": "^18.2.22",
+    "@vitejs/plugin-react": "^4.2.1",
+    "autoprefixer": "^10.4.18",
+    "postcss": "^8.4.35",
+    "tailwindcss": "^3.4.1",
+    "vite": "^5.1.6"
   }
 }

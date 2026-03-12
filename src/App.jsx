@@ -1,69 +1,70 @@
+// @ts-nocheck
 import { useState, useRef, useEffect, useCallback } from "react";
 
-// ══════════════════════════════════════════════════════════
+// ----------------------------------------------------------
 // MODULES DEFINITION
-// ══════════════════════════════════════════════════════════
+// ----------------------------------------------------------
 const MODULES = [
   { id:"intensity",  icon:"⚡", label:"Intensity Transformations",       color:"#f72585",
     topics:["Negative","Log Transform","Gamma","Contrast Stretch","Bit-plane Slicing","Thresholding","Sigmoid","Histogram Stretch"],
-    theory:{ "Negative":"s=255-r. Inverts all intensities. Useful for enhancing white detail in dark regions.", "Log Transform":"s=c·log(1+r). Expands dark, compresses bright. Used for Fourier spectrum display.", "Gamma":"s=c·rᵞ. γ<1 brightens, γ>1 darkens. Controls gamma correction for displays.", "Contrast Stretch":"Maps [lo,hi] → [0,255]. Linear enhancement without full equalization.", "Bit-plane Slicing":"Extracts individual bit planes 0-7. MSB carries most visual structure.", "Thresholding":"Binary: s=255 if r≥T else 0. Simplest segmentation.", "Sigmoid":"s=255/(1+e^(-k(r-128))). S-curve contrast enhancement.", "Histogram Stretch":"(r-min)/(max-min)·255. Global linear stretch to full dynamic range." }},
+    theory:{ "Negative":"s=255-r. Inverts all intensities. Useful for enhancing white detail in dark regions.", "Log Transform":"s=c*log(1+r). Expands dark, compresses bright. Used for Fourier spectrum display.", "Gamma":"s=c*r^y. gamma<1 brightens, gamma>1 darkens. Controls gamma correction for displays.", "Contrast Stretch":"Maps [lo,hi] -> [0,255]. Linear enhancement without full equalization.", "Bit-plane Slicing":"Extracts individual bit planes 0-7. MSB carries most visual structure.", "Thresholding":"Binary: s=255 if r>=T else 0. Simplest segmentation.", "Sigmoid":"s=255/(1+e^(-k(r-128))). S-curve contrast enhancement.", "Histogram Stretch":"(r-min)/(max-min)*255. Global linear stretch to full dynamic range." }},
 
   { id:"histogram",  icon:"📊", label:"Histogram Processing",             color:"#7209b7",
     topics:["Show Histogram","Histogram Equalization","CLAHE","Histogram Matching","PDF Plot","CDF Plot","Local Equalization","Gamma via CDF"],
-    theory:{ "Histogram Equalization":"s_k=(L-1)·Σp(r_j). CDF-based remapping to uniform distribution.", "CLAHE":"Contrast Limited AHE. Clips histogram at limit before equalizing each tile. Prevents noise amplification.", "PDF Plot":"Normalized histogram p(r_k)=n_k/n. Probability density of pixel intensities.", "CDF Plot":"Cumulative sum of PDF. Used as transfer function in equalization.", "Local Equalization":"AHE: equalize independently in local tiles. Adapts to local contrast." }},
+    theory:{ "Histogram Equalization":"s_k=(L-1)*Sump(r_j). CDF-based remapping to uniform distribution.", "CLAHE":"Contrast Limited AHE. Clips histogram at limit before equalizing each tile. Prevents noise amplification.", "PDF Plot":"Normalized histogram p(r_k)=n_k/n. Probability density of pixel intensities.", "CDF Plot":"Cumulative sum of PDF. Used as transfer function in equalization.", "Local Equalization":"AHE: equalize independently in local tiles. Adapts to local contrast." }},
 
   { id:"spatial",    icon:"🔲", label:"Spatial Filtering",                color:"#3a0ca3",
     topics:["Mean Filter","Gaussian Filter","Median Filter","Laplacian","Sobel X","Sobel Y","Gradient Magnitude","Prewitt","Unsharp Masking","Emboss","Sharpen","Box Blur 5x5"],
-    theory:{ "Mean Filter":"Average of k×k neighborhood. Removes Gaussian noise, blurs edges.", "Gaussian Filter":"Weighted G(x,y)=e^(-(x²+y²)/2σ²). Better edge preservation than mean.", "Median Filter":"Non-linear. Sorts neighborhood, picks middle. Best for salt-and-pepper noise.", "Laplacian":"∇²f=∂²f/∂x²+∂²f/∂y². Isotropic 2nd derivative, highlights rapid changes.", "Unsharp Masking":"f_sharp=f+k·(f-f_blur). Amplifies high-frequency detail.", "Emboss":"Directional kernel. Highlights edges as raised surface with gray background." }},
+    theory:{ "Mean Filter":"Average of kxk neighborhood. Removes Gaussian noise, blurs edges.", "Gaussian Filter":"Weighted G(x,y)=e^(-(x^2+y^2)/2sigma^2). Better edge preservation than mean.", "Median Filter":"Non-linear. Sorts neighborhood, picks middle. Best for salt-and-pepper noise.", "Laplacian":"Laplacianf=d2f/dx^2+d2f/dy^2. Isotropic 2nd derivative, highlights rapid changes.", "Unsharp Masking":"f_sharp=f+k*(f-f_blur). Amplifies high-frequency detail.", "Emboss":"Directional kernel. Highlights edges as raised surface with gray background." }},
 
   { id:"frequency",  icon:"〰️", label:"Frequency Domain Filtering",      color:"#4361ee",
     topics:["DFT Magnitude","DFT Phase","Ideal LP","Butterworth LP","Gaussian LP","Ideal HP","Butterworth HP","Gaussian HP","Band Reject","Band Pass","Homomorphic"],
-    theory:{ "DFT":"F(u,v)=ΣΣf(x,y)e^(-j2π(ux/M+vy/N)). Decomposes image into frequency components.", "Ideal LP":"H=1 if D≤D₀ else 0. Sharp cutoff causes Gibbs ringing in spatial domain.", "Butterworth LP":"H=1/(1+(D/D₀)^2n). Smooth rolloff. Order n controls sharpness.", "Gaussian LP":"H=e^(-D²/2D₀²). No ringing. Spatial equivalent also Gaussian.", "Homomorphic":"ln→FFT→(γH-γL)·H+γL→IFFT→exp. Normalizes illumination, enhances reflectance." }},
+    theory:{ "DFT":"F(u,v)=SumSumf(x,y)e^(-j2pi(ux/M+vy/N)). Decomposes image into frequency components.", "Ideal LP":"H=1 if D<=D0 else 0. Sharp cutoff causes Gibbs ringing in spatial domain.", "Butterworth LP":"H=1/(1+(D/D0)^2n). Smooth rolloff. Order n controls sharpness.", "Gaussian LP":"H=e^(-D^2/2D0^2). No ringing. Spatial equivalent also Gaussian.", "Homomorphic":"ln->FFT->(gammaH-gammaL)*H+gammaL->IFFT->exp. Normalizes illumination, enhances reflectance." }},
 
   { id:"restoration",icon:"🔧", label:"Image Restoration",               color:"#4cc9f0",
     topics:["Add Gaussian Noise","Add Salt & Pepper","Add Periodic Noise","Add Speckle","Denoise Mean","Denoise Median","Denoise Gaussian","Wiener Filter","Notch Filter","Sharpen Restore","Bilateral-like"],
-    theory:{ "Gaussian Noise":"g=f+η, η~N(μ,σ²). Additive, spectrally flat. Removed by linear averaging.", "Salt & Pepper":"Random 0/255 pixels. Caused by transmission errors. Best: median filter.", "Periodic Noise":"Sinusoidal η=A·sin(2π(u₀x+v₀y)). Appears as spikes in DFT. Removed by notch filter.", "Wiener Filter":"Ĥ*/(|H|²+Sn/Sf). Minimizes MSE. Balances inverse filtering with noise smoothing.", "Notch Filter":"Rejects ±(u₀,v₀) frequency pairs. Surgical removal of periodic noise." }},
+    theory:{ "Gaussian Noise":"g=f+eta, eta~N(mu,sigma^2). Additive, spectrally flat. Removed by linear averaging.", "Salt & Pepper":"Random 0/255 pixels. Caused by transmission errors. Best: median filter.", "Periodic Noise":"Sinusoidal eta=A*sin(2pi(u0x+v0y)). Appears as spikes in DFT. Removed by notch filter.", "Wiener Filter":"H_hat*/(|H|^2+Sn/Sf). Minimizes MSE. Balances inverse filtering with noise smoothing.", "Notch Filter":"Rejects +/-(u0,v0) frequency pairs. Surgical removal of periodic noise." }},
 
   { id:"registration",icon:"🎯", label:"Geometric Transforms & Registration", color:"#06d6a0",
     topics:["Upload & Match","Feature Detection","Keypoint Matching","Homography","Aligned Overlay","Difference Map","Affine Transform","Projective Warp","Translation","Rotation","Scaling","Shear","Flip H","Flip V","Bilinear Interp"],
-    theory:{ "Harris Corner":"R=det(M)-k·trace²(M). R>0: corner, R<0: edge, R≈0: flat region.", "Feature Matching":"Compare descriptors using SSD. Ratio test: accept if d₁/d₂<0.8.", "Homography":"3×3 matrix mapping plane→plane. 4+ point correspondences + RANSAC.", "Affine Transform":"6 DOF: translation+rotation+scale+shear. Preserves parallel lines.", "RANSAC":"Sample minimal set→fit model→count inliers. Robust to outliers up to 50%.", "Bilinear Interpolation":"Weighted average of 4 neighbors for sub-pixel positions. Smooth warping." }},
+    theory:{ "Harris Corner":"R=det(M)-k*trace^2(M). R>0: corner, R<0: edge, R~=0: flat region.", "Feature Matching":"Compare descriptors using SSD. Ratio test: accept if d1/d2<0.8.", "Homography":"3x3 matrix mapping plane->plane. 4+ point correspondences + RANSAC.", "Affine Transform":"6 DOF: translation+rotation+scale+shear. Preserves parallel lines.", "RANSAC":"Sample minimal set->fit model->count inliers. Robust to outliers up to 50%.", "Bilinear Interpolation":"Weighted average of 4 neighbors for sub-pixel positions. Smooth warping." }},
 
   { id:"color",      icon:"🎨", label:"Color Image Processing",           color:"#f77f00",
     topics:["Original","Grayscale","Red Channel","Green Channel","Blue Channel","HSV Hue","HSV Saturation","HSV Value","YCbCr Y","YCbCr Cb","YCbCr Cr","LAB Lightness","Pseudocolor","Sepia","Negative Color","Saturate","Desaturate","Color Equalization","White Balance"],
-    theory:{ "RGB":"Additive. (R,G,B)∈[0,255]³. Hardware native. Channels correlated in natural images.", "HSV":"Hue=color type, Saturation=purity, Value=brightness. Separates chrominance from luminance.", "YCbCr":"Y=luma, Cb/Cr=chroma. JPEG/video standard. Separates brightness from color.", "LAB":"L=lightness, a=green-red, b=blue-yellow. Perceptually uniform color space.", "Pseudocolor":"Maps grayscale intensities to color LUT. Enhances perception of subtle differences." }},
+    theory:{ "RGB":"Additive. (R,G,B) in [0,255]^3. Hardware native. Channels correlated in natural images.", "HSV":"Hue=color type, Saturation=purity, Value=brightness. Separates chrominance from luminance.", "YCbCr":"Y=luma, Cb/Cr=chroma. JPEG/video standard. Separates brightness from color.", "LAB":"L=lightness, a=green-red, b=blue-yellow. Perceptually uniform color space.", "Pseudocolor":"Maps grayscale intensities to color LUT. Enhances perception of subtle differences." }},
 
   { id:"medical",    icon:"🏥", label:"Medical Image Processing",         color:"#e63946",
     topics:["Grayscale View","Bone Window","Lung Window","Brain Window","Soft Tissue","CT Simulate","MRI Noise","Medical Denoise","Tissue Threshold","Edge Enhance","Pseudo HU Color","Vessel Enhance"],
-    theory:{ "DICOM":"Digital Imaging and Communications in Medicine. Standard format for medical images with metadata.", "HU Values":"Hounsfield Units: Air=-1000, Fat≈-100, Water=0, Muscle≈+40, Bone=+400 to +1000.", "CT Windowing":"WC±WW/2 mapped to [0,255]. Controls visible tissue range.", "NIfTI":"Neuroimaging format (.nii). Stores 3D/4D MRI volumes with affine geometry.", "Windowing":"Display subset [WC-WW/2, WC+WW/2]. Critical for reading CT/MRI images." }},
+    theory:{ "DICOM":"Digital Imaging and Communications in Medicine. Standard format for medical images with metadata.", "HU Values":"Hounsfield Units: Air=-1000, Fat~=-100, Water=0, Muscle~=+40, Bone=+400 to +1000.", "CT Windowing":"WC+/-WW/2 mapped to [0,255]. Controls visible tissue range.", "NIfTI":"Neuroimaging format (.nii). Stores 3D/4D MRI volumes with affine geometry.", "Windowing":"Display subset [WC-WW/2, WC+WW/2]. Critical for reading CT/MRI images." }},
 
   { id:"wavelets",   icon:"🌊", label:"Wavelets",                         color:"#2ec4b6",
     topics:["Haar LL (Approx)","Haar LH (Horiz)","Haar HL (Vert)","Haar HH (Diag)","Soft Threshold","Hard Threshold","Multi-level Decomp","Wavelet Edge","Reconstruct","Wavelet Compress"],
-    theory:{ "FWT":"Mallat: iteratively apply h (low) + g (high) + downsample. O(N) complexity.", "Decomposition":"Level: LL=approx, LH=horiz detail, HL=vert detail, HH=diag detail.", "Wavelet Denoising":"Decompose→threshold coefficients→reconstruct. Preserves edges unlike Gaussian.", "Haar":"h=[1,1]/√2, g=[1,-1]/√2. Simplest, discontinuous, computationally cheapest.", "Soft Threshold":"sign(x)·max(0,|x|-T). Shrinks coefficients toward zero. Smoother result." }},
+    theory:{ "FWT":"Mallat: iteratively apply h (low) + g (high) + downsample. O(N) complexity.", "Decomposition":"Level: LL=approx, LH=horiz detail, HL=vert detail, HH=diag detail.", "Wavelet Denoising":"Decompose->threshold coefficients->reconstruct. Preserves edges unlike Gaussian.", "Haar":"h=[1,1]/sqrt2, g=[1,-1]/sqrt2. Simplest, discontinuous, computationally cheapest.", "Soft Threshold":"sign(x)*max(0,|x|-T). Shrinks coefficients toward zero. Smoother result." }},
 
   { id:"compression",icon:"📦", label:"Image Compression",               color:"#ff6b35",
-    topics:["DCT 8×8 Blocks","Quantize HQ","Quantize LQ","JPEG Artifact Sim","Block Grid View","Bit Depth 4-bit","Bit Depth 2-bit","Chroma Subsampling","RLE Visualize","Compression Stats"],
-    theory:{ "DCT":"8×8 block DCT in JPEG. Energy compacted to low-frequency top-left coefficients.", "Quantization":"Divide by Q matrix, round. Lossy step producing JPEG artifacts.", "Coding Redundancy":"Non-uniform probabilities → Huffman assigns shorter codes to common symbols.", "Spatial Redundancy":"Adjacent pixels correlated. Exploited by predictive and transform coding.", "JPEG Artifacts":"Blocking, ringing, color smear. More visible at high compression ratios." }},
+    topics:["DCT 8x8 Blocks","Quantize HQ","Quantize LQ","JPEG Artifact Sim","Block Grid View","Bit Depth 4-bit","Bit Depth 2-bit","Chroma Subsampling","RLE Visualize","Compression Stats"],
+    theory:{ "DCT":"8x8 block DCT in JPEG. Energy compacted to low-frequency top-left coefficients.", "Quantization":"Divide by Q matrix, round. Lossy step producing JPEG artifacts.", "Coding Redundancy":"Non-uniform probabilities -> Huffman assigns shorter codes to common symbols.", "Spatial Redundancy":"Adjacent pixels correlated. Exploited by predictive and transform coding.", "JPEG Artifacts":"Blocking, ringing, color smear. More visible at high compression ratios." }},
 
   { id:"segmentation",icon:"✂️", label:"Image Segmentation",             color:"#8338ec",
     topics:["Global Threshold","Otsu Method","Adaptive Threshold","Sobel Edges","Laplacian Edges","Canny-like","Gradient + NMS","Region Color","K-means 2","K-means 4","Hough Viz","Watershed Sim"],
-    theory:{ "Otsu":"Maximizes inter-class variance σ²_B=ω₀ω₁(μ₀-μ₁)². Automatic optimal threshold.", "Canny":"Gaussian→gradient→non-max suppression→double threshold→hysteresis. Optimal detector.", "Hough":"Maps (x,y)→(ρ,θ) space. Peaks in accumulator = detected geometric shapes.", "Adaptive":"Local threshold T(x,y) based on neighborhood. Handles uneven illumination.", "K-means":"Cluster pixels in feature space. Label by cluster ID. Fast but assumes spherical clusters." }},
+    theory:{ "Otsu":"Maximizes inter-class variance sigma^2_B=omega0omega1(mu0-mu1)^2. Automatic optimal threshold.", "Canny":"Gaussian->gradient->non-max suppression->double threshold->hysteresis. Optimal detector.", "Hough":"Maps (x,y)->(rho,theta) space. Peaks in accumulator = detected geometric shapes.", "Adaptive":"Local threshold T(x,y) based on neighborhood. Handles uneven illumination.", "K-means":"Cluster pixels in feature space. Label by cluster ID. Fast but assumes spherical clusters." }},
 
   { id:"representation",icon:"📐", label:"Representation & Description",  color:"#fb5607",
     topics:["Boundary Extract","Skeleton","Distance Transform","Convex Hull Viz","Moment Map","GLCM Texture","Region Props","Zernike Viz","Fourier Desc Viz","Chain Code Viz"],
-    theory:{ "Chain Codes":"Direction codes tracing boundary. 4 or 8-connectivity. Compact but noise-sensitive.", "Fourier Descriptors":"DFT of boundary. Low-freq = overall shape. Invariant with normalization.", "Moments":"m_pq=ΣΣx^p·y^q·f(x,y). Hu's 7 moments: invariant to similarity transforms.", "GLCM":"P(i,j|d,θ). Contrast, energy, entropy, homogeneity features. Texture analysis.", "Skeleton":"Medial axis via thinning. Captures topological structure of binary shapes." }},
+    theory:{ "Chain Codes":"Direction codes tracing boundary. 4 or 8-connectivity. Compact but noise-sensitive.", "Fourier Descriptors":"DFT of boundary. Low-freq = overall shape. Invariant with normalization.", "Moments":"m_pq=SumSumx^p*y^q*f(x,y). Hu's 7 moments: invariant to similarity transforms.", "GLCM":"P(i,j|d,theta). Contrast, energy, entropy, homogeneity features. Texture analysis.", "Skeleton":"Medial axis via thinning. Captures topological structure of binary shapes." }},
 
   { id:"features",   icon:"🔍", label:"Feature Detection & Description",  color:"#3f88c5",
     topics:["Harris Corners","Shi-Tomasi","FAST Detect","DoG (SIFT-like)","Gradient Mag","Gradient Dir","HOG Cells","LBP Texture","Dense Grid","ORB-like Keypoints","Feature Heatmap"],
-    theory:{ "Harris":"M=Σw[Ix²,IxIy;IxIy,Iy²]. R=det-k·trace². Corner if R>threshold.", "SIFT":"DoG extrema→orientation→128-D gradient histogram. Scale+rotation invariant.", "ORB":"Oriented FAST + Rotated BRIEF. 256-bit binary. Patent-free. 100× faster than SIFT.", "HOG":"8×8 cells → 9-bin orientation histograms → L2-normalize in 16×16 blocks.", "LBP":"8-neighbor binary label against center. Rotation-invariant. Texture descriptor." }},
+    theory:{ "Harris":"M=Sumw[Ix^2,IxIy;IxIy,Iy^2]. R=det-k*trace^2. Corner if R>threshold.", "SIFT":"DoG extrema->orientation->128-D gradient histogram. Scale+rotation invariant.", "ORB":"Oriented FAST + Rotated BRIEF. 256-bit binary. Patent-free. 100x faster than SIFT.", "HOG":"8x8 cells -> 9-bin orientation histograms -> L2-normalize in 16x16 blocks.", "LBP":"8-neighbor binary label against center. Rotation-invariant. Texture descriptor." }},
 
   { id:"matching",   icon:"🔗", label:"Feature Matching & Model Fitting", color:"#e9c46a",
     topics:["Upload & Match","BF Match Viz","Ratio Test Viz","RANSAC Demo","Homography Warp","Similarity Map","Corner Response","Distance Map","Edge+Corner","Template Match","KD-tree Sim","LSH Sim"],
-    theory:{ "BF Matching":"Compare all descriptor pairs. O(N²). Exact. Use Hamming for binary, L2 for float.", "Ratio Test":"Accept if d₁/d₂<0.7-0.8. Rejects ambiguous matches. Lowe's key insight.", "RANSAC":"Random sample→fit→inliers→repeat. Handles up to 50% outliers.", "KD-Tree":"Binary space partition. O(log N) approx NN. Best for d<20 dimensions.", "LSH":"Hash similar items to same bucket. O(1) approx NN for high-dimensional binary descriptors.", "EMD":"Earth Mover's Distance. Min transport cost between distributions." }},
+    theory:{ "BF Matching":"Compare all descriptor pairs. O(N^2). Exact. Use Hamming for binary, L2 for float.", "Ratio Test":"Accept if d1/d2<0.7-0.8. Rejects ambiguous matches. Lowe's key insight.", "RANSAC":"Random sample->fit->inliers->repeat. Handles up to 50% outliers.", "KD-Tree":"Binary space partition. O(log N) approx NN. Best for d<20 dimensions.", "LSH":"Hash similar items to same bucket. O(1) approx NN for high-dimensional binary descriptors.", "EMD":"Earth Mover's Distance. Min transport cost between distributions." }},
 ];
 
-// ══════════════════════════════════════════════════════════
+// ----------------------------------------------------------
 // CORE PROCESSING ENGINE
-// ══════════════════════════════════════════════════════════
+// ----------------------------------------------------------
 function convolve(gray, W, H, kernel) {
   const k = kernel.length, kh = Math.floor(k/2);
   const res = new Float32Array(W*H);
@@ -96,7 +97,7 @@ function processImg(src, modId, topic, params={}) {
   const GAUSS=[[1,2,1],[2,4,2],[1,2,1]].map(r=>r.map(v=>v/16));
   const MEAN=[[1,1,1],[1,1,1],[1,1,1]].map(r=>r.map(v=>v/9));
 
-  // ── INTENSITY ──
+  // -- INTENSITY --
   if (modId==="intensity") {
     const g=params.gamma||1, T=params.thresh||128, plane=params.plane||7, k=params.k||0.1;
     for(let i=0;i<N;i++){
@@ -113,7 +114,7 @@ function processImg(src, modId, topic, params={}) {
     }
   }
 
-  // ── HISTOGRAM ──
+  // -- HISTOGRAM --
   else if(modId==="histogram"){
     const hist=new Array(256).fill(0);
     for(let i=0;i<N;i++) hist[Math.round(gray[i])]++;
@@ -156,7 +157,7 @@ function processImg(src, modId, topic, params={}) {
     } else if(topic==="Local Equalization"){
       const pad=16;
       for(let y=0;y<H;y++) for(let x=0;x<W;x++){
-        const th=new Array(256).fill(0),cnt2=(2*pad+1)**2;
+        const th=new Array(256).fill(0),cnt2=((2*pad+1)*(2*pad+1));
         for(let dy=-pad;dy<=pad;dy++) for(let dx=-pad;dx<=pad;dx++){
           const px=Math.min(Math.max(x+dx,0),W-1),py=Math.min(Math.max(y+dy,0),H-1);
           th[Math.round(gray[py*W+px])]++;
@@ -171,7 +172,7 @@ function processImg(src, modId, topic, params={}) {
     }
   }
 
-  // ── SPATIAL ──
+  // -- SPATIAL --
   else if(modId==="spatial"){
     const median3=()=>{
       for(let y=0;y<H;y++) for(let x=0;x<W;x++){
@@ -192,7 +193,7 @@ function processImg(src, modId, topic, params={}) {
     if(topic==="Median Filter"){median3();}
     else if(topic==="Gradient Magnitude"){
       const gx=convolve(gray,W,H,KX),gy=convolve(gray,W,H,KY);
-      for(let i=0;i<N;i++){const v=Math.min(255,Math.round(Math.sqrt(gx[i]**2+gy[i]**2)));out[i*4]=out[i*4+1]=out[i*4+2]=v;out[i*4+3]=255;}
+      for(let i=0;i<N;i++){const v=Math.min(255,Math.round(Math.sqrt(gx[i]*gx[i]+gy[i]*gy[i])));out[i*4]=out[i*4+1]=out[i*4+2]=v;out[i*4+3]=255;}
     } else {
       const k=KERNELS[topic]||GAUSS;
       const res=convolve(gray,W,H,k);
@@ -201,7 +202,7 @@ function processImg(src, modId, topic, params={}) {
     }
   }
 
-  // ── FREQUENCY ──
+  // -- FREQUENCY --
   else if(modId==="frequency"){
     const D0=params.d0||40,n=params.n||2;
     const cx=W/2,cy=H/2;
@@ -211,21 +212,21 @@ function processImg(src, modId, topic, params={}) {
         const u=((x-cx)/W*20),v2=((y-cy)/H*20);
         const re=gray[y*W+x]*Math.cos(2*Math.PI*(u*x/W+v2*y/H));
         const im=gray[y*W+x]*Math.sin(2*Math.PI*(u*x/W+v2*y/H));
-        const mag=Math.min(255,Math.round(Math.log(1+Math.sqrt(re**2+im**2))*10));
+        const mag=Math.min(255,Math.round(Math.log(1+Math.sqrt((re*re)+(im*im)))*10));
         const phase=Math.round((Math.atan2(im,re)+Math.PI)/(2*Math.PI)*255);
         const val=topic==="DFT Magnitude"?mag:phase;
         out[(y*W+x)*4]=out[(y*W+x)*4+1]=out[(y*W+x)*4+2]=val;out[(y*W+x)*4+3]=255;
       }
     } else {
       for(let y=0;y<H;y++) for(let x=0;x<W;x++){
-        const D=Math.sqrt((x-cx)**2+(y-cy)**2)||0.001;
+        const D=Math.sqrt((x-cx)*(x-cx)+(y-cy)*(y-cy))||0.001;
         let H_val=1;
         if(topic==="Ideal LP") H_val=D<=D0?1:0;
         else if(topic==="Butterworth LP") H_val=1/(1+Math.pow(D/D0,2*n));
-        else if(topic==="Gaussian LP") H_val=Math.exp(-D**2/(2*D0**2));
+        else if(topic==="Gaussian LP") H_val=Math.exp(-(D*D)/(2*(D0*D0)));
         else if(topic==="Ideal HP") H_val=D>D0?1:0;
         else if(topic==="Butterworth HP") H_val=1/(1+Math.pow(D0/D,2*n));
-        else if(topic==="Gaussian HP") H_val=1-Math.exp(-D**2/(2*D0**2));
+        else if(topic==="Gaussian HP") H_val=1-Math.exp(-(D*D)/(2*(D0*D0)));
         else if(topic==="Band Reject") H_val=(D<D0*0.7||D>D0*1.3)?1:0;
         else if(topic==="Band Pass") H_val=(D>=D0*0.7&&D<=D0*1.3)?1:0;
         else if(topic==="Homomorphic") H_val=D>D0?1.4:0.6;
@@ -235,7 +236,7 @@ function processImg(src, modId, topic, params={}) {
     }
   }
 
-  // ── RESTORATION ──
+  // -- RESTORATION --
   else if(modId==="restoration"){
     const sigma=params.sigma||20;
     if(topic==="Add Gaussian Noise"){
@@ -266,7 +267,7 @@ function processImg(src, modId, topic, params={}) {
         for(let dy=-2;dy<=2;dy++) for(let dx=-2;dx<=2;dx++){
           const px=Math.min(Math.max(x+dx,0),W-1),py=Math.min(Math.max(y+dy,0),H-1);
           const gv=gray[py*W+px],cv=gray[y*W+x];
-          const ws=Math.exp(-(dx**2+dy**2)/8)*Math.exp(-(gv-cv)**2/(2*sig**2));
+          const ws=Math.exp(-((dx*dx)+(dy*dy))/8)*Math.exp(-((gv-cv)*(gv-cv))/(2*(sig*sig)));
           sum2+=gv*ws;wsum+=ws;
         }
         const v=Math.round(sum2/(wsum||1));out[(y*W+x)*4]=out[(y*W+x)*4+1]=out[(y*W+x)*4+2]=v;out[(y*W+x)*4+3]=255;
@@ -276,10 +277,10 @@ function processImg(src, modId, topic, params={}) {
     }
   }
 
-  // ── REGISTRATION / GEOMETRIC ──
+  // -- REGISTRATION / GEOMETRIC --
   else if(modId==="registration"){
     if(["Upload & Match","Feature Detection","Keypoint Matching","Homography","Aligned Overlay","Difference Map"].includes(topic)){
-      // These are handled by the special registration UI — return grayscale passthrough
+      // These are handled by the special registration UI  -  return grayscale passthrough
       for(let i=0;i<N;i++){out[i*4]=out[i*4+1]=out[i*4+2]=Math.round(gray[i]);out[i*4+3]=255;}
       return new ImageData(out,W,H);
     }
@@ -312,7 +313,7 @@ function processImg(src, modId, topic, params={}) {
     return new ImageData(result,W,H);
   }
 
-  // ── COLOR ──
+  // -- COLOR --
   else if(modId==="color"){
     for(let i=0;i<N;i++){
       const r=data[i*4],g2=data[i*4+1],b=data[i*4+2];
@@ -348,7 +349,7 @@ function processImg(src, modId, topic, params={}) {
     }
   }
 
-  // ── MEDICAL ──
+  // -- MEDICAL --
   else if(modId==="medical"){
     const applyWin=(wc,ww)=>{for(let i=0;i<N;i++){const hu=(gray[i]-128)*10,v=Math.max(0,Math.min(255,Math.round((hu-wc+ww/2)/ww*255)));out[i*4]=out[i*4+1]=out[i*4+2]=v;out[i*4+3]=255;}};
     if(topic==="Grayscale View"){for(let i=0;i<N;i++){const v=Math.round(gray[i]);out[i*4]=out[i*4+1]=out[i*4+2]=v;out[i*4+3]=255;}}
@@ -372,11 +373,11 @@ function processImg(src, modId, topic, params={}) {
       }
     } else if(topic==="Vessel Enhance"){
       const gx=convolve(gray,W,H,KX),gy=convolve(gray,W,H,KY);
-      for(let i=0;i<N;i++){const mag=Math.min(255,Math.sqrt(gx[i]**2+gy[i]**2));const v=gray[i]>100?Math.round(mag):0;out[i*4]=v;out[i*4+1]=Math.round(gray[i]*0.3);out[i*4+2]=0;out[i*4+3]=255;}
+      for(let i=0;i<N;i++){const mag=Math.min(255,Math.sqrt(gx[i]*gx[i]+gy[i]*gy[i]));const v=gray[i]>100?Math.round(mag):0;out[i*4]=v;out[i*4+1]=Math.round(gray[i]*0.3);out[i*4+2]=0;out[i*4+3]=255;}
     }
   }
 
-  // ── WAVELETS ──
+  // -- WAVELETS --
   else if(modId==="wavelets"){
     const w2=Math.floor(W/2),h2=Math.floor(H/2);
     const LL=new Float32Array(w2*h2),LH=new Float32Array(w2*h2),HL=new Float32Array(w2*h2),HH=new Float32Array(w2*h2);
@@ -413,7 +414,7 @@ function processImg(src, modId, topic, params={}) {
     } else if(topic==="Wavelet Edge"){
       for(let y=0;y<H;y++) for(let x=0;x<W;x++){
         const bx=Math.min(Math.floor(x/W*w2),w2-1),by=Math.min(Math.floor(y/H*h2),h2-1);
-        const edge=Math.min(255,Math.round(Math.sqrt(LH[by*w2+bx]**2+HL[by*w2+bx]**2)*3));
+        const edge=Math.min(255,Math.round(Math.sqrt(LH[by*w2+bx]*LH[by*w2+bx]+HL[by*w2+bx]*HL[by*w2+bx])*3));
         out[(y*W+x)*4]=edge;out[(y*W+x)*4+1]=Math.round(edge*0.5);out[(y*W+x)*4+2]=0;out[(y*W+x)*4+3]=255;
       }
     } else if(topic==="Reconstruct"){const res=convolve(gray,W,H,GAUSS);setG(res);}
@@ -423,10 +424,10 @@ function processImg(src, modId, topic, params={}) {
     }
   }
 
-  // ── COMPRESSION ──
+  // -- COMPRESSION --
   else if(modId==="compression"){
     const bs=8;
-    if(topic==="DCT 8×8 Blocks"){
+    if(topic==="DCT 8x8 Blocks"){
       for(let by=0;by<Math.ceil(H/bs);by++) for(let bx2=0;bx2<Math.ceil(W/bs);bx2++){
         const blk=[];
         for(let y=0;y<bs;y++) for(let x=0;x<bs;x++){const px=Math.min(bx2*bs+x,W-1),py=Math.min(by*bs+y,H-1);blk.push(gray[py*W+px]-128);}
@@ -452,27 +453,27 @@ function processImg(src, modId, topic, params={}) {
       for(let i=0;i<=N;i++){const v=i<N?Math.round(gray[i]):rVal+1;if(v!==rVal||i===N){const hue=(rStart/N)*360;const r2=Math.round(128+64*Math.sin(hue*Math.PI/180)),g2=Math.round(128+64*Math.sin((hue+120)*Math.PI/180)),b2=Math.round(128+64*Math.sin((hue+240)*Math.PI/180));for(let j=rStart;j<i;j++){out[j*4]=r2;out[j*4+1]=g2;out[j*4+2]=b2;out[j*4+3]=255;}rStart=i;rVal=v;}}
     } else if(topic==="Compression Stats"){
       const q=16;let mse=0;
-      for(let i=0;i<N;i++){const orig=gray[i],comp=Math.round(orig/q)*q;mse+=(orig-comp)**2;const v=comp;out[i*4]=out[i*4+1]=out[i*4+2]=v;out[i*4+3]=255;}
+      for(let i=0;i<N;i++){const orig=gray[i],comp=Math.round(orig/q)*q;mse+=((orig-comp)*(orig-comp));const v=comp;out[i*4]=out[i*4+1]=out[i*4+2]=v;out[i*4+3]=255;}
     }
   }
 
-  // ── SEGMENTATION ──
+  // -- SEGMENTATION --
   else if(modId==="segmentation"){
     const T=params.thresh||128;
     if(topic==="Global Threshold"){for(let i=0;i<N;i++){const v=gray[i]>=T?255:0;out[i*4]=out[i*4+1]=out[i*4+2]=v;out[i*4+3]=255;}}
     else if(topic==="Otsu Method"){
       const hist2=new Array(256).fill(0);for(let i=0;i<N;i++) hist2[Math.round(gray[i])]++;
       let bestT=0,bestSig=0,sum2=0;for(let k=0;k<256;k++) sum2+=k*hist2[k];
-      let w0=0,sumB=0;for(let t=0;t<256;t++){w0+=hist2[t]/N;const w1=1-w0;if(!w0||!w1) continue;sumB+=t*hist2[t]/N;const mu0=sumB/(w0||1),mu1=(sum2/N-sumB)/(w1||1),sig=w0*w1*(mu0-mu1)**2;if(sig>bestSig){bestSig=sig;bestT=t;}}
+      let w0=0,sumB=0;for(let t=0;t<256;t++){w0+=hist2[t]/N;const w1=1-w0;if(!w0||!w1) continue;sumB+=t*hist2[t]/N;const mu0=sumB/(w0||1),mu1=(sum2/N-sumB)/(w1||1),sig=w0*w1*((mu0-mu1)*(mu0-mu1));if(sig>bestSig){bestSig=sig;bestT=t;}}
       for(let i=0;i<N;i++){const v=gray[i]>=bestT?255:0;out[i*4]=out[i*4+1]=out[i*4+2]=v;out[i*4+3]=255;}
     } else if(topic==="Adaptive Threshold"){
       const pad=12;for(let y=0;y<H;y++) for(let x=0;x<W;x++){let sum2=0,cnt2=0;for(let dy=-pad;dy<=pad;dy++) for(let dx=-pad;dx<=pad;dx++){const px=Math.min(Math.max(x+dx,0),W-1),py=Math.min(Math.max(y+dy,0),H-1);sum2+=gray[py*W+px];cnt2++;}const v=gray[y*W+x]>=sum2/cnt2-5?255:0;out[(y*W+x)*4]=out[(y*W+x)*4+1]=out[(y*W+x)*4+2]=v;out[(y*W+x)*4+3]=255;}
-    } else if(topic==="Sobel Edges"){const gx=convolve(gray,W,H,KX),gy=convolve(gray,W,H,KY);for(let i=0;i<N;i++){const v=Math.min(255,Math.round(Math.sqrt(gx[i]**2+gy[i]**2)));out[i*4]=out[i*4+1]=out[i*4+2]=v;out[i*4+3]=255;}}
+    } else if(topic==="Sobel Edges"){const gx=convolve(gray,W,H,KX),gy=convolve(gray,W,H,KY);for(let i=0;i<N;i++){const v=Math.min(255,Math.round(Math.sqrt(gx[i]*gx[i]+gy[i]*gy[i])));out[i*4]=out[i*4+1]=out[i*4+2]=v;out[i*4+3]=255;}}
     else if(topic==="Laplacian Edges"){const res=convolve(gray,W,H,[[0,-1,0],[-1,4,-1],[0,-1,0]]);for(let i=0;i<N;i++){const v=Math.min(255,Math.abs(Math.round(res[i])));out[i*4]=out[i*4+1]=out[i*4+2]=v;out[i*4+3]=255;}}
     else if(topic==="Canny-like"||topic==="Gradient + NMS"){
       const gx=convolve(gray,W,H,KX),gy=convolve(gray,W,H,KY);
       const mag=new Float32Array(N),dir=new Float32Array(N);
-      for(let i=0;i<N;i++){mag[i]=Math.sqrt(gx[i]**2+gy[i]**2);dir[i]=Math.atan2(gy[i],gx[i]);}
+      for(let i=0;i<N;i++){mag[i]=Math.sqrt(gx[i]*gx[i]+gy[i]*gy[i]);dir[i]=Math.atan2(gy[i],gx[i]);}
       for(let y=1;y<H-1;y++) for(let x=1;x<W-1;x++){
         const d=((dir[y*W+x]*4/Math.PI)+4)%4;let n1=0,n2=0;
         if(d<0.5||d>=3.5){n1=mag[y*W+x-1];n2=mag[y*W+x+1];}
@@ -491,16 +492,16 @@ function processImg(src, modId, topic, params={}) {
       for(let i2=0;i2<N;i2++){let best=0,bd=Infinity;centers.forEach((c,j)=>{const d=Math.abs(gray[i2]-c);if(d<bd){bd=d;best=j;}});out[i2*4]=cols[best][0];out[i2*4+1]=cols[best][1];out[i2*4+2]=cols[best][2];out[i2*4+3]=255;}
     } else if(topic==="Hough Viz"){
       const gx=convolve(gray,W,H,KX),gy=convolve(gray,W,H,KY);
-      for(let i=0;i<N;i++){const mag2=Math.sqrt(gx[i]**2+gy[i]**2),angle=Math.atan2(gy[i],gx[i]);const v=Math.min(255,Math.round(mag2));out[i*4]=Math.round((angle+Math.PI)/(2*Math.PI)*255*2)%255;out[i*4+1]=v;out[i*4+2]=255-v;out[i*4+3]=255;}
+      for(let i=0;i<N;i++){const mag2=Math.sqrt(gx[i]*gx[i]+gy[i]*gy[i]),angle=Math.atan2(gy[i],gx[i]);const v=Math.min(255,Math.round(mag2));out[i*4]=Math.round((angle+Math.PI)/(2*Math.PI)*255*2)%255;out[i*4+1]=v;out[i*4+2]=255-v;out[i*4+3]=255;}
     } else if(topic==="Watershed Sim"){
       const hist2=new Array(256).fill(0);for(let i=0;i<N;i++) hist2[Math.round(gray[i])]++;
       let bestT2=0,bestSig2=0,sum3=0;for(let k=0;k<256;k++) sum3+=k*hist2[k];
-      let w0b=0,sumB2=0;for(let t=0;t<256;t++){w0b+=hist2[t]/N;const w1b=1-w0b;if(!w0b||!w1b) continue;sumB2+=t*hist2[t]/N;const mu0b=sumB2/(w0b||1),mu1b=(sum3/N-sumB2)/(w1b||1),sig=w0b*w1b*(mu0b-mu1b)**2;if(sig>bestSig2){bestSig2=sig;bestT2=t;}}
-      for(let i=0;i<N;i++){const v=gray[i]>=bestT2?255:0;const gx2=convolve(gray,W,H,KX),gy2=convolve(gray,W,H,KY);const mag2=Math.min(255,Math.sqrt(gx2[i]**2+gy2[i]**2));out[i*4]=v>128?255:Math.round(mag2);out[i*4+1]=Math.round(gray[i]*0.5);out[i*4+2]=v>128?0:255;out[i*4+3]=255;}
+      let w0b=0,sumB2=0;for(let t=0;t<256;t++){w0b+=hist2[t]/N;const w1b=1-w0b;if(!w0b||!w1b) continue;sumB2+=t*hist2[t]/N;const mu0b=sumB2/(w0b||1),mu1b=(sum3/N-sumB2)/(w1b||1),sig=w0b*w1b*((mu0b-mu1b)*(mu0b-mu1b));if(sig>bestSig2){bestSig2=sig;bestT2=t;}}
+      for(let i=0;i<N;i++){const v=gray[i]>=bestT2?255:0;const gx2=convolve(gray,W,H,KX),gy2=convolve(gray,W,H,KY);const mag2=Math.min(255,Math.sqrt(gx2[i]*gx2[i]+gy2[i]*gy2[i]));out[i*4]=v>128?255:Math.round(mag2);out[i*4+1]=Math.round(gray[i]*0.5);out[i*4+2]=v>128?0:255;out[i*4+3]=255;}
     }
   }
 
-  // ── REPRESENTATION ──
+  // -- REPRESENTATION --
   else if(modId==="representation"){
     if(topic==="Boundary Extract"){
       const bin=gray.map(v=>v>128?1:0);
@@ -511,17 +512,17 @@ function processImg(src, modId, topic, params={}) {
     } else if(topic==="Skeleton"){const res=convolve(gray,W,H,[[0,-1,0],[-1,4,-1],[0,-1,0]]);for(let i=0;i<N;i++){const v=Math.abs(res[i])>25?255:0;out[i*4]=v;out[i*4+1]=v;out[i*4+2]=v;out[i*4+3]=255;}}
     else if(topic==="Distance Transform"){
       const bin2=gray.map(v=>v>128?0:Infinity);
-      for(let y=0;y<H;y++) for(let x=0;x<W;x++){if(bin2[y*W+x]===0) continue;let minD=Infinity;for(let r=1;r<20&&minD===Infinity;r++) for(let dy=-r;dy<=r&&minD===Infinity;dy++) for(let dx=-r;dx<=r;dx++){const nx=x+dx,ny=y+dy;if(nx>=0&&nx<W&&ny>=0&&ny<H&&gray[ny*W+nx]<=128){minD=Math.sqrt(dx**2+dy**2);break;}}bin2[y*W+x]=Math.min(minD,20);}
+      for(let y=0;y<H;y++) for(let x=0;x<W;x++){if(bin2[y*W+x]===0) continue;let minD=Infinity;for(let r=1;r<20&&minD===Infinity;r++) for(let dy=-r;dy<=r&&minD===Infinity;dy++) for(let dx=-r;dx<=r;dx++){const nx=x+dx,ny=y+dy;if(nx>=0&&nx<W&&ny>=0&&ny<H&&gray[ny*W+nx]<=128){minD=Math.sqrt((dx*dx)+(dy*dy));break;}}bin2[y*W+x]=Math.min(minD,20);}
       const mx2=Math.max(...bin2.filter(isFinite))||1;
       for(let i=0;i<N;i++){const v=Math.round((bin2[i]||0)/mx2*255);out[i*4]=v;out[i*4+1]=Math.round(255-v);out[i*4+2]=0;out[i*4+3]=255;}
     } else if(topic==="Convex Hull Viz"){for(let i=0;i<N;i++){const x=i%W,y=Math.floor(i/W),t=(x/W+y/H)/2;out[i*4]=Math.round(gray[i]*t);out[i*4+1]=Math.round(gray[i]*(1-t));out[i*4+2]=Math.round(gray[i]*0.5);out[i*4+3]=255;}}
-    else if(topic==="Moment Map"){let m00=0,m10=0,m01=0;for(let y=0;y<H;y++) for(let x=0;x<W;x++){const v=gray[y*W+x]/255;m00+=v;m10+=x*v;m01+=y*v;}const cx2=m00>0?m10/m00:W/2,cy2=m00>0?m01/m00:H/2;for(let i=0;i<N;i++){const x=i%W,y=Math.floor(i/W),d=Math.sqrt((x-cx2)**2+(y-cy2)**2);out[i*4]=Math.round(gray[i]);out[i*4+1]=Math.round(gray[i]);out[i*4+2]=Math.round(gray[i]);if(d<5){out[i*4]=255;out[i*4+1]=0;out[i*4+2]=0;}out[i*4+3]=255;}}
+    else if(topic==="Moment Map"){let m00=0,m10=0,m01=0;for(let y=0;y<H;y++) for(let x=0;x<W;x++){const v=gray[y*W+x]/255;m00+=v;m10+=x*v;m01+=y*v;}const cx2=m00>0?m10/m00:W/2,cy2=m00>0?m01/m00:H/2;for(let i=0;i<N;i++){const x=i%W,y=Math.floor(i/W),d=Math.sqrt((x-cx2)*(x-cx2)+(y-cy2)*(y-cy2));out[i*4]=Math.round(gray[i]);out[i*4+1]=Math.round(gray[i]);out[i*4+2]=Math.round(gray[i]);if(d<5){out[i*4]=255;out[i*4+1]=0;out[i*4+2]=0;}out[i*4+3]=255;}}
     else if(topic==="GLCM Texture"){
       const GLCM=new Float32Array(256*256);for(let y=0;y<H;y++) for(let x=0;x<W-1;x++){const a=Math.round(gray[y*W+x]),b=Math.round(gray[y*W+x+1]);GLCM[a*256+b]++;GLCM[b*256+a]++;}
       const maxG=Math.max(...GLCM)||1;for(let i=0;i<N;i++){const gv=Math.round(gray[i]);let energy=0;for(let j=Math.max(0,gv-10);j<Math.min(256,gv+10);j++) energy+=GLCM[gv*256+j];const v=Math.min(255,Math.round(energy/maxG*5000));out[i*4]=v;out[i*4+1]=Math.round(gray[i]);out[i*4+2]=255-v;out[i*4+3]=255;}
-    } else if(topic==="Region Props"){for(let i=0;i<N;i++){const x=i%W,y=Math.floor(i/W),d=Math.sqrt((x-W/2)**2+(y-H/2)**2)/(Math.min(W,H)/2);const v=Math.round(gray[i]*(1-d*0.4));out[i*4]=v;out[i*4+1]=Math.round(v*(1-d));out[i*4+2]=Math.round(255*d);out[i*4+3]=255;}}
-    else if(topic==="Zernike Viz"){for(let i=0;i<N;i++){const x=(i%W-W/2)/(W/2),y=(Math.floor(i/W)-H/2)/(H/2),r=Math.sqrt(x**2+y**2),theta=Math.atan2(y,x);const v=Math.round(Math.abs(Math.cos(3*theta)*Math.exp(-r**2))*255);out[i*4]=v;out[i*4+1]=Math.round(gray[i]*0.5);out[i*4+2]=255-v;out[i*4+3]=255;}}
-    else if(topic==="Fourier Desc Viz"){const gx=convolve(gray,W,H,KX),gy=convolve(gray,W,H,KY);for(let i=0;i<N;i++){const mag=Math.min(255,Math.sqrt(gx[i]**2+gy[i]**2));out[i*4]=Math.round(mag);out[i*4+1]=Math.round(gray[i]*0.3);out[i*4+2]=Math.round(255-mag);out[i*4+3]=255;}}
+    } else if(topic==="Region Props"){for(let i=0;i<N;i++){const x=i%W,y=Math.floor(i/W),d=Math.sqrt(((x-W/2)*(x-W/2))+((y-H/2)*(y-H/2)))/(Math.min(W,H)/2);const v=Math.round(gray[i]*(1-d*0.4));out[i*4]=v;out[i*4+1]=Math.round(v*(1-d));out[i*4+2]=Math.round(255*d);out[i*4+3]=255;}}
+    else if(topic==="Zernike Viz"){for(let i=0;i<N;i++){const x=(i%W-W/2)/(W/2),y=(Math.floor(i/W)-H/2)/(H/2),r=Math.sqrt((x*x)+(y*y)),theta=Math.atan2(y,x);const v=Math.round(Math.abs(Math.cos(3*theta)*Math.exp-(r*r))*255);out[i*4]=v;out[i*4+1]=Math.round(gray[i]*0.5);out[i*4+2]=255-v;out[i*4+3]=255;}}
+    else if(topic==="Fourier Desc Viz"){const gx=convolve(gray,W,H,KX),gy=convolve(gray,W,H,KY);for(let i=0;i<N;i++){const mag=Math.min(255,Math.sqrt(gx[i]*gx[i]+gy[i]*gy[i]));out[i*4]=Math.round(mag);out[i*4+1]=Math.round(gray[i]*0.3);out[i*4+2]=Math.round(255-mag);out[i*4+3]=255;}}
     else if(topic==="Chain Code Viz"){
       const bin3=gray.map(v=>v>128?1:0);const dirs=[[1,0],[1,-1],[0,-1],[-1,-1],[-1,0],[-1,1],[0,1],[1,1]];
       for(let y=0;y<H;y++) for(let x=0;x<W;x++){
@@ -532,11 +533,11 @@ function processImg(src, modId, topic, params={}) {
     }
   }
 
-  // ── FEATURES ──
+  // -- FEATURES --
   else if(modId==="features"){
     const Ix=convolve(gray,W,H,KX),Iy=convolve(gray,W,H,KY);
     if(topic==="Harris Corners"||topic==="Shi-Tomasi"){
-      const R=new Float32Array(N);for(let i=0;i<N;i++){const A=Ix[i]**2,B=Iy[i]**2,C=Ix[i]*Iy[i];R[i]=A*B-C**2-0.05*(A+B)**2;}
+      const R=new Float32Array(N);for(let i=0;i<N;i++){const A=Ix[i]*Ix[i],B=Iy[i]*Iy[i],C=Ix[i]*Iy[i];R[i]=A*B-(C*C)-0.05*((A+B)*(A+B));}
       const maxR=Math.max(...R.map(Math.abs))||1;
       for(let i=0;i<N;i++){out[i*4]=Math.round(data[i*4]);out[i*4+1]=Math.round(data[i*4+1]);out[i*4+2]=Math.round(data[i*4+2]);if(R[i]>maxR*0.1){out[i*4]=255;out[i*4+1]=0;out[i*4+2]=0;}out[i*4+3]=255;}
     } else if(topic==="FAST Detect"){
@@ -552,37 +553,37 @@ function processImg(src, modId, topic, params={}) {
       const G2=[[1,4,6,4,1],[4,16,24,16,4],[6,24,36,24,6],[4,16,24,16,4],[1,4,6,4,1]].map(r=>r.map(v=>v/256));
       const g2=convolve(gray,W,H,G2);
       for(let i=0;i<N;i++){const v=Math.min(255,Math.abs(g1[i]-g2[i])*5);out[i*4]=out[i*4+1]=out[i*4+2]=Math.round(v);out[i*4+3]=255;}
-    } else if(topic==="Gradient Mag"){for(let i=0;i<N;i++){const v=Math.min(255,Math.round(Math.sqrt(Ix[i]**2+Iy[i]**2)));out[i*4]=out[i*4+1]=out[i*4+2]=v;out[i*4+3]=255;}}
+    } else if(topic==="Gradient Mag"){for(let i=0;i<N;i++){const v=Math.min(255,Math.round(Math.sqrt(Ix[i]*Ix[i]+Iy[i]*Iy[i])));out[i*4]=out[i*4+1]=out[i*4+2]=v;out[i*4+3]=255;}}
     else if(topic==="Gradient Dir"){for(let i=0;i<N;i++){const a=(Math.atan2(Iy[i],Ix[i])+Math.PI)/(2*Math.PI);out[i*4]=Math.round(a*255);out[i*4+1]=Math.round((1-a)*255);out[i*4+2]=128;out[i*4+3]=255;}}
     else if(topic==="HOG Cells"){
-      for(let y=0;y<H;y++) for(let x=0;x<W;x++){const mag=Math.min(255,Math.sqrt(Ix[y*W+x]**2+Iy[y*W+x]**2));const a=(Math.atan2(Iy[y*W+x],Ix[y*W+x])+Math.PI)/(2*Math.PI);out[(y*W+x)*4]=Math.round(a*mag);out[(y*W+x)*4+1]=Math.round((1-a)*mag);out[(y*W+x)*4+2]=Math.round(mag*0.4);out[(y*W+x)*4+3]=255;}
+      for(let y=0;y<H;y++) for(let x=0;x<W;x++){const mag=Math.min(255,Math.sqrt(Ix[y*W+x]*Ix[y*W+x]+Iy[y*W+x]*Iy[y*W+x]));const a=(Math.atan2(Iy[y*W+x],Ix[y*W+x])+Math.PI)/(2*Math.PI);out[(y*W+x)*4]=Math.round(a*mag);out[(y*W+x)*4+1]=Math.round((1-a)*mag);out[(y*W+x)*4+2]=Math.round(mag*0.4);out[(y*W+x)*4+3]=255;}
     } else if(topic==="LBP Texture"){
       for(let y=1;y<H-1;y++) for(let x=1;x<W-1;x++){const c=gray[y*W+x];const nb=[gray[(y-1)*W+(x-1)],gray[(y-1)*W+x],gray[(y-1)*W+(x+1)],gray[y*W+(x+1)],gray[(y+1)*W+(x+1)],gray[(y+1)*W+x],gray[(y+1)*W+(x-1)],gray[y*W+(x-1)]];const lbp=nb.reduce((a,n,i2)=>a|((n>=c?1:0)<<i2),0);out[(y*W+x)*4]=out[(y*W+x)*4+1]=out[(y*W+x)*4+2]=lbp;out[(y*W+x)*4+3]=255;}
     } else if(topic==="Dense Grid"){for(let i=0;i<N;i++){const x=i%W,y=Math.floor(i/W),onG=(x%16===8||y%16===8);out[i*4]=onG?255:Math.round(data[i*4]);out[i*4+1]=onG?200:Math.round(data[i*4+1]);out[i*4+2]=onG?0:Math.round(data[i*4+2]);out[i*4+3]=255;}}
     else if(topic==="ORB-like Keypoints"){
-      const R=new Float32Array(N);for(let i=0;i<N;i++){const A=Ix[i]**2,B=Iy[i]**2,C=Ix[i]*Iy[i];R[i]=A*B-C**2-0.05*(A+B)**2;}
+      const R=new Float32Array(N);for(let i=0;i<N;i++){const A=Ix[i]*Ix[i],B=Iy[i]*Iy[i],C=Ix[i]*Iy[i];R[i]=A*B-(C*C)-0.05*((A+B)*(A+B));}
       const maxR=Math.max(...R.map(Math.abs))||1;
       for(let i=0;i<N;i++){const x=i%W,y=Math.floor(i/W);const isK=R[i]>maxR*0.12;out[i*4]=isK?255:Math.round(data[i*4]);out[i*4+1]=isK?165:Math.round(data[i*4+1]);out[i*4+2]=isK?0:Math.round(data[i*4+2]);out[i*4+3]=255;}
     } else if(topic==="Feature Heatmap"){
-      const R=new Float32Array(N);for(let i=0;i<N;i++){const A=Ix[i]**2,B=Iy[i]**2,C=Ix[i]*Iy[i];R[i]=A*B-C**2-0.05*(A+B)**2;}
+      const R=new Float32Array(N);for(let i=0;i<N;i++){const A=Ix[i]*Ix[i],B=Iy[i]*Iy[i],C=Ix[i]*Iy[i];R[i]=A*B-(C*C)-0.05*((A+B)*(A+B));}
       const mn2=Math.min(...R),mx2=Math.max(...R)||1;
       for(let i=0;i<N;i++){const t=(R[i]-mn2)/(mx2-mn2);out[i*4]=Math.round(t*255);out[i*4+1]=Math.round((1-t)*200);out[i*4+2]=Math.round((1-t)*255);out[i*4+3]=255;}
     }
   }
 
-  // ── MATCHING ──
+  // -- MATCHING --
   else if(modId==="matching"){
     if(["Upload & Match","BF Match Viz"].includes(topic)){for(let i=0;i<N;i++){out[i*4]=out[i*4+1]=out[i*4+2]=Math.round(gray[i]);out[i*4+3]=255;}return new ImageData(out,W,H);}
     const Ix=convolve(gray,W,H,KX),Iy=convolve(gray,W,H,KY);
     if(topic==="Ratio Test Viz"||topic==="Corner Response"){
-      const R=new Float32Array(N);for(let i=0;i<N;i++){const A=Ix[i]**2,B=Iy[i]**2,C=Ix[i]*Iy[i];R[i]=A*B-C**2-0.05*(A+B)**2;}
+      const R=new Float32Array(N);for(let i=0;i<N;i++){const A=Ix[i]*Ix[i],B=Iy[i]*Iy[i],C=Ix[i]*Iy[i];R[i]=A*B-(C*C)-0.05*((A+B)*(A+B));}
       const mn2=Math.min(...R),mx2=Math.max(...R)||1;
       for(let i=0;i<N;i++){const t=(R[i]-mn2)/(mx2-mn2);out[i*4]=Math.round(t>0.1?t*255:0);out[i*4+1]=Math.round(gray[i]*0.2);out[i*4+2]=Math.round(t<0.1?(1-t)*255:0);out[i*4+3]=255;}
     } else if(topic==="RANSAC Demo"){for(let i=0;i<N;i++){const x=i%W,y=Math.floor(i/W),lineY=H/2+Math.sin(x/W*Math.PI*2)*40,inl=Math.abs(y-lineY)<10;out[i*4]=inl?0:Math.round(gray[i]);out[i*4+1]=inl?200:Math.round(gray[i]);out[i*4+2]=inl?100:Math.round(gray[i]);out[i*4+3]=255;}}
     else if(topic==="Homography Warp"){const res2=new Uint8ClampedArray(W*H*4);for(let y=0;y<H;y++) for(let x=0;x<W;x++){const sx=x+Math.sin(y/H*Math.PI)*25,sy=y+Math.cos(x/W*Math.PI)*25;const px=Math.max(0,Math.min(W-1,Math.round(sx))),py=Math.max(0,Math.min(H-1,Math.round(sy)));const idx=(y*W+x)*4,si=(py*W+px)*4;res2[idx]=data[si];res2[idx+1]=data[si+1];res2[idx+2]=data[si+2];res2[idx+3]=255;}return new ImageData(res2,W,H);}
-    else if(topic==="Similarity Map"){const cx=W/2,cy=H/2;for(let i=0;i<N;i++){const x=i%W,y=Math.floor(i/W),d=1-Math.sqrt((x-cx)**2+(y-cy)**2)/Math.sqrt(cx**2+cy**2),sim=Math.max(0,d*gray[i]/255);out[i*4]=Math.round(255*sim);out[i*4+1]=Math.round(128*sim);out[i*4+2]=Math.round(255*(1-sim));out[i*4+3]=255;}}
-    else if(topic==="Distance Map"){for(let i=0;i<N;i++){const x=i%W,y=Math.floor(i/W),d=Math.sqrt((x-W/2)**2+(y-H/2)**2)/Math.sqrt((W/2)**2+(H/2)**2);out[i*4]=Math.round(d*255);out[i*4+1]=Math.round((1-d)*255);out[i*4+2]=Math.round(gray[i]);out[i*4+3]=255;}}
-    else if(topic==="Edge+Corner"){const R=new Float32Array(N);for(let i=0;i<N;i++){const A=Ix[i]**2,B=Iy[i]**2,C=Ix[i]*Iy[i];R[i]=A*B-C**2-0.05*(A+B)**2;}const maxR=Math.max(...R.map(Math.abs))||1;for(let i=0;i<N;i++){const mag=Math.min(255,Math.sqrt(Ix[i]**2+Iy[i]**2)),isC=R[i]>maxR*0.15;out[i*4]=isC?255:Math.round(mag*0.4);out[i*4+1]=Math.round(mag);out[i*4+2]=isC?255:0;out[i*4+3]=255;}}
+    else if(topic==="Similarity Map"){const cx=W/2,cy=H/2;for(let i=0;i<N;i++){const x=i%W,y=Math.floor(i/W),d=1-Math.sqrt((x-cx)*(x-cx)+(y-cy)*(y-cy))/Math.sqrt((cx*cx)+(cy*cy)),sim=Math.max(0,d*gray[i]/255);out[i*4]=Math.round(255*sim);out[i*4+1]=Math.round(128*sim);out[i*4+2]=Math.round(255*(1-sim));out[i*4+3]=255;}}
+    else if(topic==="Distance Map"){for(let i=0;i<N;i++){const x=i%W,y=Math.floor(i/W),d=Math.sqrt(((x-W/2)*(x-W/2))+((y-H/2)*(y-H/2)))/Math.sqrt(((W/2)*(W/2))+((H/2)*(H/2)));out[i*4]=Math.round(d*255);out[i*4+1]=Math.round((1-d)*255);out[i*4+2]=Math.round(gray[i]);out[i*4+3]=255;}}
+    else if(topic==="Edge+Corner"){const R=new Float32Array(N);for(let i=0;i<N;i++){const A=Ix[i]*Ix[i],B=Iy[i]*Iy[i],C=Ix[i]*Iy[i];R[i]=A*B-(C*C)-0.05*((A+B)*(A+B));}const maxR=Math.max(...R.map(Math.abs))||1;for(let i=0;i<N;i++){const mag=Math.min(255,Math.sqrt(Ix[i]*Ix[i]+Iy[i]*Iy[i])),isC=R[i]>maxR*0.15;out[i*4]=isC?255:Math.round(mag*0.4);out[i*4+1]=Math.round(mag);out[i*4+2]=isC?255:0;out[i*4+3]=255;}}
     else if(topic==="Template Match"){const bl=convolve(gray,W,H,GAUSS);for(let i=0;i<N;i++){const m=Math.abs(gray[i]-bl[i])<8;out[i*4]=m?255:Math.round(gray[i]);out[i*4+1]=Math.round(gray[i]);out[i*4+2]=m?0:Math.round(gray[i]);out[i*4+3]=255;}}
     else if(topic==="KD-tree Sim"){for(let i=0;i<N;i++){const x=i%W,y=Math.floor(i/W),sector=Math.floor(x/(W/4))+Math.floor(y/(H/4))*4;const cols=[[255,80,80],[80,255,80],[80,80,255],[255,255,80],[255,80,255],[80,255,255],[200,200,80],[80,200,200]];const c=cols[sector%8];out[i*4]=Math.round(c[0]*gray[i]/255);out[i*4+1]=Math.round(c[1]*gray[i]/255);out[i*4+2]=Math.round(c[2]*gray[i]/255);out[i*4+3]=255;}}
     else if(topic==="LSH Sim"){for(let i=0;i<N;i++){const v=Math.round(gray[i]);const bucket=Math.floor(v/32)*32;const hue=(bucket/256)*360;out[i*4]=Math.round(128+64*Math.sin(hue*Math.PI/180));out[i*4+1]=Math.round(128+64*Math.sin((hue+120)*Math.PI/180));out[i*4+2]=Math.round(128+64*Math.sin((hue+240)*Math.PI/180));out[i*4+3]=255;}}
@@ -593,14 +594,14 @@ function processImg(src, modId, topic, params={}) {
   return new ImageData(out,W,H);
 }
 
-// ══════════════════════════════════════════════════════════
+// ----------------------------------------------------------
 // REGISTRATION ENGINE  (Harris + patch match + homography)
-// ══════════════════════════════════════════════════════════
+// ----------------------------------------------------------
 function detectHarrisCorners(gray, W, H, maxKP=80){
   const KX=[[-1,0,1],[-2,0,2],[-1,0,1]],KY=[[-1,-2,-1],[0,0,0],[1,2,1]];
   const Ix=convolve(gray,W,H,KX),Iy=convolve(gray,W,H,KY);
   const R=new Float32Array(W*H);
-  for(let i=0;i<W*H;i++){const A=Ix[i]**2,B=Iy[i]**2,C=Ix[i]*Iy[i];R[i]=A*B-C**2-0.05*(A+B)**2;}
+  for(let i=0;i<W*H;i++){const A=Ix[i]*Ix[i],B=Iy[i]*Iy[i],C=Ix[i]*Iy[i];R[i]=A*B-(C*C)-0.05*((A+B)*(A+B));}
   const thresh=Math.max(...R)*0.08;
   const kps=[];
   for(let y=5;y<H-5;y++) for(let x=5;x<W-5;x++){
@@ -622,7 +623,7 @@ function patchDescriptor(gray, W, H, x, y, size=8){
   return desc;
 }
 
-function ssd(a,b){let s=0;for(let i=0;i<a.length;i++) s+=(a[i]-b[i])**2;return s;}
+function ssd(a,b){let s=0;for(let i=0;i<a.length;i++) s+=((a[i]-b[i])*(a[i]-b[i]));return s;}
 
 function matchKeypoints(kps1, descs1, kps2, descs2){
   const matches=[];
@@ -669,9 +670,9 @@ function warpImage(srcData, H_mat, dstW, dstH){
   return result;
 }
 
-// ══════════════════════════════════════════════════════════
+// ----------------------------------------------------------
 // HISTOGRAM WIDGET
-// ══════════════════════════════════════════════════════════
+// ----------------------------------------------------------
 function Histogram({imageData,label}){
   const ref=useRef(null);
   useEffect(()=>{
@@ -691,9 +692,9 @@ function Histogram({imageData,label}){
   return <canvas ref={ref} width={260} height={70} style={{width:"100%",borderRadius:3,border:"1px solid rgba(255,255,255,0.06)"}}/>;
 }
 
-// ══════════════════════════════════════════════════════════
+// ----------------------------------------------------------
 // REGISTRATION PANEL
-// ══════════════════════════════════════════════════════════
+// ----------------------------------------------------------
 function RegistrationPanel({color}){
   const [img1,setImg1]=useState(null);
   const [img2,setImg2]=useState(null);
@@ -800,8 +801,8 @@ function RegistrationPanel({color}){
     }
     const diffId=new ImageData(diff,img1.width,img1.height);
     setDiffData(diffId);
-    let mse=0;for(let i=0;i<img1.width*img1.height;i++){mse+=(img1.data[i*4]-warped[i*4])**2;}mse/=img1.width*img1.height;
-    const psnr=10*Math.log10(255**2/(mse||1));
+    let mse=0;for(let i=0;i<img1.width*img1.height;i++){mse+=((img1.data[i*4]-warped[i*4])*(img1.data[i*4]-warped[i*4]));}mse/=img1.width*img1.height;
+    const psnr=10*Math.log10((255*255)/(mse||1));
     setStats(s=>({...s,matches:matches.length,tx:H_mat[0][2].toFixed(1),ty:H_mat[1][2].toFixed(1),psnr:psnr.toFixed(1)}));
     setTimeout(()=>{
       if(alignCanvas.current){alignCanvas.current.width=img1.width;alignCanvas.current.height=img1.height;alignCanvas.current.getContext("2d").putImageData(alignId,0,0);}
@@ -823,7 +824,7 @@ function RegistrationPanel({color}){
             <div style={{background:"#06060e",border:`1px solid ${it.loaded?it.color:"rgba(255,255,255,0.06)"}`,borderRadius:4,overflow:"hidden",minHeight:120,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",transition:"border 0.2s"}}
               onClick={()=>it.ref.current?.click()}>
               <canvas ref={it.canvasRef} style={{maxWidth:"100%",maxHeight:200,display:it.loaded?"block":"none"}}/>
-              {!it.loaded&&<div style={{fontSize:11,color:"rgba(255,255,255,0.2)",letterSpacing:2}}>⊕ CLICK TO UPLOAD</div>}
+              {!it.loaded&&<div style={{fontSize:11,color:"rgba(255,255,255,0.2)",letterSpacing:2}}>+ CLICK TO UPLOAD</div>}
             </div>
             <input ref={it.ref} type="file" accept="image/*" style={{display:"none"}} onChange={e=>{const f=e.target.files?.[0];if(f) it.setFn(null)||loadImg(f,it.setFn,it.canvasRef);e.target.value="";}}/>
           </div>
@@ -835,7 +836,7 @@ function RegistrationPanel({color}){
         <button style={btnStyle(true)} onClick={runDetect} disabled={!img1||!img2}>🔍 Detect Features</button>
         <button style={btnStyle(step==="match"||step==="align")} onClick={runMatch} disabled={!img1||!img2}>🔗 Match Keypoints</button>
         <button style={btnStyle(step==="align")} onClick={runAlign} disabled={!img1||!img2}>🎯 Align & Register</button>
-        <button style={{...btnStyle(false),color:"rgba(255,255,255,0.3)"}} onClick={()=>{setImg1(null);setImg2(null);setStep("upload");setMatchLines([]);setAlignedData(null);setDiffData(null);setStats(null);}}>↺ Reset</button>
+        <button style={{...btnStyle(false),color:"rgba(255,255,255,0.3)"}} onClick={()=>{setImg1(null);setImg2(null);setStep("upload");setMatchLines([]);setAlignedData(null);setDiffData(null);setStats(null);}}>Reset Reset</button>
       </div>
 
       {/* Stats */}
@@ -877,28 +878,28 @@ function RegistrationPanel({color}){
   );
 }
 
-// ══════════════════════════════════════════════════════════
+// ----------------------------------------------------------
 // MAIN APP
-// ══════════════════════════════════════════════════════════
+// ----------------------------------------------------------
 const REG_SPECIAL=["Upload & Match","Feature Detection","Keypoint Matching","Homography","Aligned Overlay","Difference Map"];
 const MATCH_SPECIAL=["Upload & Match","BF Match Viz"];
 const PARAM_MAP={
-  "Gamma":[{key:"gamma",label:"γ",min:0.1,max:3,step:0.05}],
+  "Gamma":[{key:"gamma",label:"gamma",min:0.1,max:3,step:0.05}],
   "Bit-plane Slicing":[{key:"plane",label:"Plane",min:0,max:7,step:1}],
   "Thresholding":[{key:"thresh",label:"T",min:0,max:255,step:1}],
   "Sigmoid":[{key:"k",label:"k",min:0.01,max:0.2,step:0.01}],
   "Global Threshold":[{key:"thresh",label:"T",min:0,max:255,step:1}],
-  "Ideal LP":[{key:"d0",label:"D₀",min:5,max:120,step:1}],
-  "Butterworth LP":[{key:"d0",label:"D₀",min:5,max:120,step:1},{key:"n",label:"Order",min:1,max:5,step:1}],
-  "Gaussian LP":[{key:"d0",label:"D₀",min:5,max:120,step:1}],
-  "Ideal HP":[{key:"d0",label:"D₀",min:5,max:120,step:1}],
-  "Butterworth HP":[{key:"d0",label:"D₀",min:5,max:120,step:1},{key:"n",label:"Order",min:1,max:5,step:1}],
-  "Gaussian HP":[{key:"d0",label:"D₀",min:5,max:120,step:1}],
+  "Ideal LP":[{key:"d0",label:"D0",min:5,max:120,step:1}],
+  "Butterworth LP":[{key:"d0",label:"D0",min:5,max:120,step:1},{key:"n",label:"Order",min:1,max:5,step:1}],
+  "Gaussian LP":[{key:"d0",label:"D0",min:5,max:120,step:1}],
+  "Ideal HP":[{key:"d0",label:"D0",min:5,max:120,step:1}],
+  "Butterworth HP":[{key:"d0",label:"D0",min:5,max:120,step:1},{key:"n",label:"Order",min:1,max:5,step:1}],
+  "Gaussian HP":[{key:"d0",label:"D0",min:5,max:120,step:1}],
   "Band Reject":[{key:"d0",label:"Center",min:10,max:100,step:1}],
   "Band Pass":[{key:"d0",label:"Center",min:10,max:100,step:1}],
-  "Add Gaussian Noise":[{key:"sigma",label:"σ",min:1,max:80,step:1}],
-  "Rotation":[{key:"angle",label:"°",min:-90,max:90,step:1}],
-  "Scaling":[{key:"scale",label:"×",min:0.4,max:3,step:0.1}],
+  "Add Gaussian Noise":[{key:"sigma",label:"sigma",min:1,max:80,step:1}],
+  "Rotation":[{key:"angle",label:"deg",min:-90,max:90,step:1}],
+  "Scaling":[{key:"scale",label:"x",min:0.4,max:3,step:0.1}],
   "Translation":[{key:"tx",label:"tx",min:-80,max:80,step:1},{key:"ty",label:"ty",min:-80,max:80,step:1}],
   "Soft Threshold":[{key:"wavThresh",label:"T",min:1,max:80,step:1}],
   "Hard Threshold":[{key:"wavThresh",label:"T",min:1,max:80,step:1}],
@@ -998,11 +999,11 @@ export default function App(){
         <div style={{padding:"13px 10px",borderBottom:"1px solid rgba(255,255,255,0.05)",display:"flex",alignItems:"center",gap:8}}>
           <span style={{fontSize:18,flexShrink:0}}>🧠</span>
           {sidebar&&<div style={{fontFamily:"'Orbitron',monospace",fontSize:9.5,fontWeight:600,letterSpacing:2,color:"#4cc9f0",lineHeight:1.4}}>IMAGE<br/>PROCESSING<br/><span style={{fontSize:8,color:"rgba(76,201,240,0.35)"}}>COMPLETE TOOLKIT</span></div>}
-          <button onClick={()=>setSidebar(v=>!v)} style={{marginLeft:"auto",background:"none",border:"none",color:"rgba(255,255,255,0.25)",cursor:"pointer",fontSize:13,flexShrink:0,padding:4}}>{sidebar?"◀":"▶"}</button>
+          <button onClick={()=>setSidebar(v=>!v)} style={{marginLeft:"auto",background:"none",border:"none",color:"rgba(255,255,255,0.25)",cursor:"pointer",fontSize:13,flexShrink:0,padding:4}}>{sidebar?"<<":">>"}</button>
         </div>
         <div style={{flex:1,overflowY:"auto",padding:"5px 0"}}>
           {MODULES.map(mod=>(
-            <button key={mod.id} className={`mb${activeMod.id===mod.id?" a":""}`} style={{"--c":mod.color} as any} onClick={()=>selMod(mod)}>
+            <button key={mod.id} className={`mb${activeMod.id===mod.id?" a":""}`} style={{"--c":mod.color}} onClick={()=>selMod(mod)}>
               <div style={{display:"flex",alignItems:"center",gap:9}}>
                 <span style={{fontSize:15,flexShrink:0}}>{mod.icon}</span>
                 {sidebar&&<span style={{fontSize:10,color:activeMod.id===mod.id?mod.color:"rgba(255,255,255,0.42)",letterSpacing:0.3,lineHeight:1.35}}>{mod.label}</span>}
@@ -1010,7 +1011,7 @@ export default function App(){
             </button>
           ))}
         </div>
-        {sidebar&&<div style={{padding:"8px 14px",borderTop:"1px solid rgba(255,255,255,0.05)",fontSize:9,color:"rgba(255,255,255,0.12)",letterSpacing:1}}>{MODULES.length} MODULES · {MODULES.reduce((a,m)=>a+m.topics.length,0)} OPERATIONS</div>}
+        {sidebar&&<div style={{padding:"8px 14px",borderTop:"1px solid rgba(255,255,255,0.05)",fontSize:9,color:"rgba(255,255,255,0.12)",letterSpacing:1}}>{MODULES.length} MODULES * {MODULES.reduce((a,m)=>a+m.topics.length,0)} OPERATIONS</div>}
       </div>
 
       {/* MAIN */}
@@ -1023,7 +1024,7 @@ export default function App(){
             <div style={{fontSize:10,color:"rgba(255,255,255,0.28)",marginTop:1}}>{activeMod.description}</div>
           </div>
           {!showRegPanel&&<>
-            <label htmlFor="mainUpload" className="ub" style={{cursor:"pointer"}}>⊕ UPLOAD IMAGE</label>
+            <label htmlFor="mainUpload" className="ub" style={{cursor:"pointer"}}>+ UPLOAD IMAGE</label>
             <input id="mainUpload" ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={handleUpload}/>
           </>}
         </div>
@@ -1035,7 +1036,7 @@ export default function App(){
             <div className="lbl" style={{marginTop:0}}>Operations</div>
             <div>{activeMod.topics.map(t=>(
               <span key={t} className={`ch${activeTopic===t?" a":""}`}
-                style={{"--c":activeMod.color,"--cb":activeMod.color+"1a"} as any}
+                style={{"--c":activeMod.color,"--cb":activeMod.color+"1a"}}
                 onClick={()=>setActiveTopic(t)}>{t}</span>
             ))}</div>
 
@@ -1047,7 +1048,7 @@ export default function App(){
                     <span style={{color:"rgba(255,255,255,0.38)"}}>{p.label}</span>
                     <span style={{color:activeMod.color,fontWeight:"bold"}}>{params[p.key]}</span>
                   </div>
-                  <input type="range" className="sl" style={{"--c":activeMod.color} as any}
+                  <input type="range" className="sl" style={{"--c":activeMod.color}}
                     min={p.min} max={p.max} step={p.step} value={params[p.key]}
                     onChange={e=>setParams(prev=>({...prev,[p.key]:parseFloat(e.target.value)}))}/>
                   <div style={{display:"flex",justifyContent:"space-between",fontSize:9,color:"rgba(255,255,255,0.15)",marginTop:2}}>
@@ -1061,7 +1062,7 @@ export default function App(){
             {Object.entries(activeMod.theory||{}).map(([k,v])=>(
               <div key={k} style={{marginBottom:3}}>
                 <div className="tr" style={{color:theory===k?activeMod.color:"rgba(255,255,255,0.4)"}} onClick={()=>setTheory(theory===k?null:k)}>
-                  <span style={{fontSize:9}}>{theory===k?"▼":"▶"}</span><span>{k}</span>
+                  <span style={{fontSize:9}}>{theory===k?"v":">>"}</span><span>{k}</span>
                 </div>
                 {theory===k&&<div className="tb fu">{v}</div>}
               </div>

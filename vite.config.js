@@ -3,5 +3,5 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
-  base: './', // This is the magic line that fixes the blank page!
+  base: './', // Ensures paths work on Vercel subdomains
 })
