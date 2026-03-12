@@ -1118,12 +1118,13 @@ export default function App(){
   const [diffMode,setDiffMode]=useState(false);
   const [webcamOn,setWebcamOn]=useState(false);
   const [webcamErr,setWebcamErr]=useState(null);
+  const [liveMode,setLiveMode]=useState('sobel'); // 'sobel' | 'color' | 'capture'
   const [quizMode,setQuizMode]=useState(false);
   const [quizQ,setQuizQ]=useState(null);
   const [quizScore,setQuizScore]=useState({right:0,wrong:0});
   const [quizFeedback,setQuizFeedback]=useState(null);
   const [quizImgUrl,setQuizImgUrl]=useState(null);
-  const origRef=useRef(null),procRef=useRef(null),fileRef=useRef(null),webcamRef=useRef(null),diffRef=useRef(null),streamRef=useRef(null),camFileRef=useRef(null);
+  const origRef=useRef(null),procRef=useRef(null),fileRef=useRef(null),webcamRef=useRef(null),diffRef=useRef(null),streamRef=useRef(null),camFileRef=useRef(null),liveCanvasRef=useRef(null),animFrameRef=useRef(null);
 
   const isSpecialReg=activeMod.id==="registration"&&REG_SPECIAL.includes(activeTopic);
   const isSpecialMatch=activeMod.id==="matching"&&MATCH_SPECIAL.includes(activeTopic);
@@ -1177,40 +1178,93 @@ export default function App(){
   // Webcam toggle
   const toggleWebcam=useCallback(()=>{
     if(webcamOn){
+      if(animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
       if(streamRef.current) streamRef.current.getTracks().forEach(t=>t.stop());
       streamRef.current=null;
       if(webcamRef.current){webcamRef.current.srcObject=null;}
       setWebcamOn(false);setWebcamErr(null);
       return;
     }
-    // Try getUserMedia - works on localhost in Chrome/Firefox
-    const md=navigator.mediaDevices;
-    if(!md){
-      // Fallback: use file input with camera capture
-      camFileRef.current&&camFileRef.current.click();
+    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
+      setWebcamErr("Camera API not available. Make sure you are on localhost or HTTPS.");
+      setWebcamOn(true);
       return;
     }
-    md.getUserMedia({video:{width:{ideal:320},height:{ideal:320},facingMode:"user"}})
+    navigator.mediaDevices.getUserMedia({video:true})
       .then(stream=>{
         streamRef.current=stream;
+        if(webcamRef.current){
+          webcamRef.current.srcObject=stream;
+          webcamRef.current.play().catch(()=>{});
+        }
+        setWebcamErr(null);
         setWebcamOn(true);
-        // attach after state update via useEffect
       })
       .catch(err=>{
-        console.error("Webcam error:",err);
-        setWebcamErr(err.name+": "+err.message);
-        setWebcamOn(true); // show panel with error
-        camFileRef.current&&camFileRef.current.click();
+        let msg=err.name+": "+err.message;
+        if(err.name==="NotAllowedError") msg="Permission denied. Click the camera icon in your browser address bar and allow camera access, then try again.";
+        if(err.name==="NotFoundError") msg="No camera found on this device.";
+        setWebcamErr(msg);
+        setWebcamOn(true);
       });
   },[webcamOn]);
 
-  // Attach stream to video after webcamOn state update triggers re-render
+  // Live webcam render loop — runs every animation frame when webcam is on
   useEffect(()=>{
-    if(webcamOn&&webcamRef.current&&streamRef.current){
-      webcamRef.current.srcObject=streamRef.current;
-      webcamRef.current.play().catch(e=>console.warn("video play:",e));
+    if(!webcamOn){
+      if(animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      return;
     }
-  },[webcamOn]);
+    const KX=[[-1,0,1],[-2,0,2],[-1,0,1]];
+    const KY=[[-1,-2,-1],[0,0,0],[1,2,1]];
+    const offscreen=document.createElement('canvas');
+    const render=()=>{
+      const video=webcamRef.current;
+      const lc=liveCanvasRef.current;
+      if(!video||!lc||!video.srcObject||video.readyState<2){animFrameRef.current=requestAnimationFrame(render);return;}
+      const W=video.videoWidth||320,H=video.videoHeight||240;
+      offscreen.width=W;offscreen.height=H;
+      lc.width=W;lc.height=H;
+      const octx=offscreen.getContext('2d');
+      octx.drawImage(video,0,0,W,H);
+      const frame=octx.getImageData(0,0,W,H);
+      const N=W*H;
+      // build grayscale
+      const gray=new Float32Array(N);
+      for(let i=0;i<N;i++) gray[i]=0.299*frame.data[i*4]+0.587*frame.data[i*4+1]+0.114*frame.data[i*4+2];
+      const out=new Uint8ClampedArray(frame.data);
+      if(liveMode==='sobel'||liveMode==='color'){
+        // Sobel gradient magnitude
+        const gx=new Float32Array(N),gy=new Float32Array(N);
+        for(let y=1;y<H-1;y++) for(let x=1;x<W-1;x++){
+          let sx=0,sy=0;
+          for(let ky=0;ky<3;ky++) for(let kx=0;kx<3;kx++){
+            const v=gray[(y+ky-1)*W+(x+kx-1)];
+            sx+=v*KX[ky][kx];sy+=v*KY[ky][kx];
+          }
+          gx[y*W+x]=sx;gy[y*W+x]=sy;
+        }
+        for(let i=0;i<N;i++){
+          const mag=Math.min(255,Math.sqrt(gx[i]*gx[i]+gy[i]*gy[i]));
+          if(liveMode==='sobel'){
+            out[i*4]=Math.round(mag);out[i*4+1]=Math.round(mag);out[i*4+2]=Math.round(mag);
+          } else {
+            // Neon color edges: map angle to hue
+            const angle=(Math.atan2(gy[i],gx[i])+Math.PI)/(2*Math.PI);
+            out[i*4]=Math.round(angle*mag);
+            out[i*4+1]=Math.round((1-angle)*mag*0.8);
+            out[i*4+2]=Math.round(mag*(0.5+angle*0.5));
+          }
+          out[i*4+3]=255;
+        }
+      }
+      // else liveMode==='capture': show raw color feed
+      lc.getContext('2d').putImageData(new ImageData(out,W,H),0,0);
+      animFrameRef.current=requestAnimationFrame(render);
+    };
+    animFrameRef.current=requestAnimationFrame(render);
+    return ()=>{if(animFrameRef.current) cancelAnimationFrame(animFrameRef.current);};
+  },[webcamOn,liveMode]);
 
   // Handle camera file input fallback
   const handleCamFile=useCallback((e)=>{
@@ -1433,14 +1487,23 @@ export default function App(){
             ) : (
               <>
                 <div style={{display:webcamOn?"block":"none",marginBottom:12,background:"#06060e",border:"1px solid rgba(247,37,133,0.3)",borderRadius:4,padding:10}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,flexWrap:"wrap",gap:6}}>
                     <div className="lbl" style={{marginTop:0,color:"#f72585"}}>📷 LIVE WEBCAM</div>
-                    {webcamErr&&<div style={{fontSize:10,color:"#f72585",marginBottom:4}}>{webcamErr}</div>}
-                    <button className="ub" style={{fontSize:10,padding:"4px 10px",borderColor:"rgba(6,214,160,0.4)",color:"#06d6a0"}} onClick={captureWebcam}>⚡ CAPTURE FRAME</button>
+                    {webcamErr&&<div style={{fontSize:10,color:"#f72585"}}>{webcamErr}</div>}
+                    <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                      {[['sobel','⬜ SOBEL'],['color','🌈 NEON'],['capture','🎨 COLOR']].map(([m,label])=>(
+                        <button key={m} onClick={()=>setLiveMode(m)} style={{fontSize:10,padding:"4px 9px",borderRadius:2,cursor:"pointer",fontFamily:"monospace",border:`1px solid ${liveMode===m?"#f72585":"rgba(255,255,255,0.15)"}`,background:liveMode===m?"rgba(247,37,133,0.15)":"transparent",color:liveMode===m?"#f72585":"rgba(255,255,255,0.5)",transition:"all 0.15s"}}>{label}</button>
+                      ))}
+                      <button className="ub" style={{fontSize:10,padding:"4px 10px",borderColor:"rgba(6,214,160,0.4)",color:"#06d6a0"}} onClick={captureWebcam}>⚡ CAPTURE</button>
+                    </div>
                   </div>
-                  <div style={{display:"flex",justifyContent:"center",background:"#000",borderRadius:3,overflow:"hidden"}}>
-                    <video ref={webcamRef} autoPlay playsInline muted style={{maxWidth:"100%",maxHeight:200,display:"block"}}/>
-                    <input ref={camFileRef} type="file" accept="image/*" capture="camera" style={{display:"none"}} onChange={handleCamFile}/>
+                  {/* Hidden video — needed for stream, hidden behind live canvas */}
+                  <video ref={webcamRef} autoPlay playsInline muted style={{display:"none"}}/>
+                  <div style={{display:"flex",justifyContent:"center",background:"#000",borderRadius:3,overflow:"hidden",position:"relative"}}>
+                    <canvas ref={liveCanvasRef} style={{maxWidth:"100%",maxHeight:240,display:"block"}}/>
+                    <div style={{position:"absolute",top:6,left:8,fontSize:9,letterSpacing:2,color:"rgba(255,255,255,0.4)",pointerEvents:"none"}}>
+                      {liveMode==='sobel'?"LIVE SOBEL EDGE":liveMode==='color'?"LIVE NEON EDGE":"LIVE COLOR FEED"}
+                    </div>
                   </div>
                 </div>
 
