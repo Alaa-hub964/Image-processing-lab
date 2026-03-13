@@ -1057,7 +1057,7 @@ function RegistrationPanel({color}){
       </div>}
 
       {/* Aligned + diff */}
-      {step==="align"&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+      {step==="align"&&<div className="canvas-grid" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
         <div>
           <div style={{fontSize:9,letterSpacing:3,color:color,marginBottom:6}}>REGISTERED OVERLAY</div>
           <div style={{background:"#06060e",border:`1px solid ${color}44`,borderRadius:4,overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",minHeight:120}}>
@@ -1073,6 +1073,177 @@ function RegistrationPanel({color}){
           {diffData&&<Histogram imageData={diffData} label="Difference Histogram"/>}
         </div>
       </div>}
+
+      {/* ── MOBILE OVERLAYS ─────────────────────────────────────── */}
+      {/* Modules overlay */}
+      <div className={`mob-overlay${mobPanel==='modules'?' open':''}`}>
+        <div className="lbl" style={{marginTop:0,marginBottom:10}}>Select Module</div>
+        {MODULES.map(mod=>(
+          <button key={mod.id} className={`mb${activeMod.id===mod.id?' a':''}`}
+            style={{'--c':mod.color,width:'100%',marginBottom:4,borderRadius:3}}
+            onClick={()=>{selMod(mod);setMobPanel(null);}}>
+            <div style={{display:'flex',alignItems:'center',gap:10}}>
+              <span style={{fontSize:18}}>{mod.icon}</span>
+              <span style={{fontSize:12,color:activeMod.id===mod.id?mod.color:'rgba(255,255,255,0.6)'}}>{mod.label}</span>
+            </div>
+          </button>
+        ))}
+      </div>
+
+      {/* Operations overlay */}
+      <div className={`mob-overlay${mobPanel==='ops'?' open':''}`}>
+        <div className="lbl" style={{marginTop:0}}>
+          {activeMod.icon} {activeMod.label}
+        </div>
+        <div style={{marginBottom:16}}>
+          {activeMod.topics.map(t=>(
+            <span key={t} className={`ch${activeTopic===t?' a':''}`}
+              style={{'--c':activeMod.color,'--cb':activeMod.color+'1a',fontSize:13,padding:'8px 14px',margin:4,display:'inline-block'}}
+              onClick={()=>{setActiveTopic(t);setMobPanel(null);}}>
+              {t}
+            </span>
+          ))}
+        </div>
+        {curParams.length>0&&<>
+          <div className="lbl">Parameters</div>
+          {curParams.map(p=>(
+            <div key={p.key} style={{marginBottom:18}}>
+              <div style={{display:'flex',justifyContent:'space-between',marginBottom:6,fontSize:13}}>
+                <span style={{color:'rgba(255,255,255,0.5)'}}>{p.label}</span>
+                <span style={{color:activeMod.color,fontWeight:'bold'}}>{params[p.key]}</span>
+              </div>
+              <input type="range" className="sl" style={{'--c':activeMod.color}}
+                min={p.min} max={p.max} step={p.step} value={params[p.key]}
+                onChange={e=>setParams(prev=>({...prev,[p.key]:parseFloat(e.target.value)}))}/>
+            </div>
+          ))}
+        </>}
+      </div>
+
+      {/* Theory overlay */}
+      <div className={`mob-overlay${mobPanel==='theory'?' open':''}`}>
+        <div className="lbl" style={{marginTop:0}}>Theory — {activeTopic}</div>
+        {Object.entries(activeMod.theory||{}).map(([k,v])=>(
+          <div key={k} style={{marginBottom:6}}>
+            <div className="tr" style={{color:theory===k?activeMod.color:'rgba(255,255,255,0.5)',fontSize:13,padding:'6px 0'}}
+              onClick={()=>setTheory(theory===k?null:k)}>
+              <span style={{fontSize:11}}>{theory===k?'▼':'▶'}</span>
+              <span>{k}</span>
+            </div>
+            {theory===k&&<div className="tb fu" style={{fontSize:12,lineHeight:1.8}}>{v}</div>}
+          </div>
+        ))}
+      </div>
+
+      {/* ── MOBILE BOTTOM NAV ──────────────────────────────────────── */}
+      <nav className="mob-nav">
+        {[
+          {id:'modules', icon:'☰', label:'MODULES'},
+          {id:'ops',     icon:'⚙️', label:'OPS'},
+          {id:'theory',  icon:'📖', label:'THEORY'},
+          {id:'cam',     icon:'📷', label:'CAM'},
+        ].map(({id,icon,label})=>(
+          <button key={id}
+            className={`mob-nav-btn${mobPanel===id?' a':''}`}
+            style={{'--c': id==='cam'?(webcamOn?'#f72585':'#4cc9f0'):activeMod.color}}
+            onClick={()=>{
+              if(id==='cam'){toggleWebcam();setMobPanel(null);}
+              else setMobPanel(mobPanel===id?null:id);
+            }}>
+            <span className="ico">{id==='cam'&&webcamOn?'🔴':icon}</span>
+            <span>{id==='cam'&&webcamOn?'STOP':label}</span>
+          </button>
+        ))}
+        <button className="mob-nav-btn" style={{'--c':'#06d6a0'}}
+          onClick={exportImage}>
+          <span className="ico">💾</span>
+          <span>SAVE</span>
+        </button>
+      </nav>
+
+      {/* ── MOBILE BOTTOM NAV ─────────────────────────────── */}
+      <nav className="mob-nav" style={{"--mc":activeMod.color}}>
+        {[
+          {id:'modules', ico:'🧠', label:'MODULES'},
+          {id:'ops',     ico:activeMod.icon, label:'OPS'},
+          {id:'canvas',  ico:'🖼️', label:'CANVAS'},
+          {id:'theory',  ico:'📖', label:'THEORY'},
+        ].map(tab=>(
+          <button key={tab.id} className={`mob-nav-btn${mobTab===tab.id?' a':''}`}
+            onClick={()=>setMobTab(t=>t===tab.id&&tab.id!=='canvas'?'canvas':tab.id)}>
+            <span className="ico">{tab.ico}</span>
+            {tab.label}
+          </button>
+        ))}
+      </nav>
+
+      {/* ── MOBILE MODULES OVERLAY ─────────────────────────── */}
+      <div className={`mob-overlay${mobTab==='modules'?' open':''}`}>
+        <div style={{fontFamily:"'Orbitron',monospace",fontSize:10,color:"#4cc9f0",letterSpacing:2,marginBottom:12}}>SELECT MODULE</div>
+        {MODULES.map(mod=>(
+          <button key={mod.id} onClick={()=>{selMod(mod);setMobTab('ops');}}
+            style={{width:"100%",background:activeMod.id===mod.id?"rgba(255,255,255,0.07)":"transparent",
+              border:"none",borderLeft:`3px solid ${activeMod.id===mod.id?mod.color:"transparent"}`,
+              color:activeMod.id===mod.id?mod.color:"rgba(255,255,255,0.5)",
+              padding:"12px 14px",cursor:"pointer",textAlign:"left",
+              fontFamily:"'Share Tech Mono',monospace",fontSize:12,
+              display:"flex",alignItems:"center",gap:10,marginBottom:2}}>
+            <span style={{fontSize:20}}>{mod.icon}</span>
+            {mod.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── MOBILE OPS OVERLAY ─────────────────────────────── */}
+      <div className={`mob-overlay${mobTab==='ops'?' open':''}`}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
+          <span style={{fontSize:22}}>{activeMod.icon}</span>
+          <div style={{fontFamily:"'Orbitron',monospace",fontSize:11,color:activeMod.color,letterSpacing:1}}>{activeMod.label}</div>
+        </div>
+        <div style={{marginBottom:16}}>
+          {activeMod.topics.map(t=>(
+            <span key={t} className={`ch${activeTopic===t?' a':''}`}
+              style={{"--c":activeMod.color,"--cb":activeMod.color+"1a"}}
+              onClick={()=>{setActiveTopic(t);setMobTab('canvas');}}>
+              {t}
+            </span>
+          ))}
+        </div>
+        {curParams.length>0&&<>
+          <div className="lbl" style={{marginTop:0}}>Parameters</div>
+          {curParams.map(p=>(
+            <div key={p.key} style={{marginBottom:16}}>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
+                <span style={{fontSize:11,color:"rgba(255,255,255,0.5)"}}>{p.label}</span>
+                <span style={{fontSize:11,color:activeMod.color}}>{params[p.key]}</span>
+              </div>
+              <input type="range" className="sl" style={{"--c":activeMod.color}}
+                min={p.min} max={p.max} step={p.step} value={params[p.key]||p.min}
+                onChange={e=>setParams(prev=>({...prev,[p.key]:parseFloat(e.target.value)}))}/>
+            </div>
+          ))}
+        </>}
+      </div>
+
+      {/* ── MOBILE THEORY OVERLAY ──────────────────────────── */}
+      <div className={`mob-overlay${mobTab==='theory'?' open':''}`}>
+        <div className="lbl" style={{marginTop:0}}>Theory — {activeMod.label}</div>
+        {Object.entries(activeMod.theory||{}).map(([k,v])=>(
+          <div key={k} style={{marginBottom:8}}>
+            <div onClick={()=>setTheory(theory===k?null:k)}
+              style={{cursor:"pointer",padding:"10px 12px",background:"rgba(255,255,255,0.03)",
+                border:"1px solid rgba(255,255,255,0.07)",borderRadius:3,
+                color:theory===k?activeMod.color:"rgba(255,255,255,0.6)",fontSize:12}}>
+              {theory===k?"▼":"▶"} {k}
+            </div>
+            {theory===k&&<div style={{padding:"10px 12px",background:"rgba(255,255,255,0.02)",
+              border:"1px solid rgba(255,255,255,0.05)",borderTop:"none",
+              fontSize:11,lineHeight:1.8,color:"rgba(255,255,255,0.55)"}}>
+              {v}
+            </div>}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -1124,6 +1295,8 @@ export default function App(){
   const [quizScore,setQuizScore]=useState({right:0,wrong:0});
   const [quizFeedback,setQuizFeedback]=useState(null);
   const [quizImgUrl,setQuizImgUrl]=useState(null);
+  const [mobTab,setMobTab]=useState('canvas'); // 'modules'|'ops'|'canvas'|'theory'
+  const [mobPanel,setMobPanel]=useState(null); // null | 'modules' | 'ops' | 'theory'
   const origRef=useRef(null),procRef=useRef(null),fileRef=useRef(null),webcamRef=useRef(null),diffRef=useRef(null),streamRef=useRef(null),camFileRef=useRef(null),liveCanvasRef=useRef(null),animFrameRef=useRef(null);
 
   const isSpecialReg=activeMod.id==="registration"&&REG_SPECIAL.includes(activeTopic);
@@ -1344,6 +1517,8 @@ export default function App(){
   const selMod=(mod)=>{setActiveMod(mod);setActiveTopic(mod.topics[0]);setTheory(null);};
   const curParams=PARAM_MAP[activeTopic]||[];
 
+  const isMob = typeof window!=='undefined' && window.innerWidth<=768;
+
   return(
     <div style={{display:"flex",height:"100vh",background:"#070710",fontFamily:"'Share Tech Mono','Courier New',monospace",color:"#dde0ff",overflow:"hidden"}}>
       <style>{`
@@ -1361,7 +1536,7 @@ export default function App(){
         .ub{background:rgba(76,201,240,0.07);border:1px solid rgba(76,201,240,0.3);color:#4cc9f0;cursor:pointer;padding:8px 16px;font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:2px;border-radius:2px;transition:all 0.2s;}
         .ub:hover{background:rgba(76,201,240,0.18);border-color:#4cc9f0;}
         .tb{background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.07);border-radius:3px;padding:11px;font-size:11px;line-height:1.9;color:rgba(255,255,255,0.6);margin-top:6px;}
-        .cw{background:#06060e;border:1px solid rgba(255,255,255,0.06);border-radius:4px;overflow:hidden;display:flex;align-items:center;justify-content:center;min-height:150px;}
+        .cw{background:#06060e;border:1px solid rgba(255,255,255,0.06);border-radius:4px;overflow:hidden;display:flex;align-items:center;justify-content:center;min-height:120px;}
         canvas{max-width:100%;max-height:300px;display:block;}
         .lbl{font-size:9px;letter-spacing:3px;color:rgba(255,255,255,0.22);text-transform:uppercase;margin-bottom:6px;margin-top:12px;}
         @keyframes fu{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
@@ -1369,6 +1544,119 @@ export default function App(){
         .tr{cursor:pointer;padding:4px 0;display:flex;align-items:center;gap:6px;font-size:11px;transition:color 0.15s;}
         .tr:hover{color:white;}
         .ic{background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.07);border-radius:3px;padding:10px 12px;}
+
+        /* ── MOBILE RESPONSIVE ─────────────────────────────────────────── */
+        .mob-nav{display:none;}
+        .mob-overlay{display:none;}
+
+        @media(max-width:768px){
+          /* Hide desktop sidebar and left panel */
+          .desktop-sidebar{display:none !important;}
+          .desktop-left{display:none !important;}
+
+          /* Bottom navigation bar */
+          .mob-nav{
+            display:flex;
+            position:fixed;bottom:0;left:0;right:0;
+            height:60px;
+            background:#06060e;
+            border-top:1px solid rgba(255,255,255,0.1);
+            z-index:200;
+            align-items:stretch;
+            padding:0 4px;
+          }
+          .mob-nav-btn{
+            flex:1;background:none;border:none;
+            cursor:pointer;
+            display:flex;flex-direction:column;
+            align-items:center;justify-content:center;
+            gap:3px;
+            font-size:7.5px;letter-spacing:0.8px;
+            color:rgba(255,255,255,0.3);
+            font-family:'Share Tech Mono',monospace;
+            padding:6px 2px;
+            transition:all 0.15s;
+            border-top:2px solid transparent;
+          }
+          .mob-nav-btn.a{color:var(--mc,#4cc9f0);border-top-color:var(--mc,#4cc9f0);}
+          .mob-nav-btn span.ico{font-size:20px;line-height:1;}
+
+          /* Full-screen overlays for modules and ops panels */
+          .mob-overlay{
+            display:none;
+            position:fixed;top:0;left:0;right:0;bottom:60px;
+            background:#06060e;
+            z-index:150;
+            overflow-y:auto;
+            padding:14px 14px 20px;
+            animation:fu 0.18s ease;
+          }
+          .mob-overlay.open{display:block;}
+
+          /* Header adjustments */
+          .mob-header{
+            padding:8px 12px !important;
+            flex-wrap:wrap;
+            gap:6px !important;
+            padding-bottom:8px !important;
+          }
+          .mob-title-block{flex:1;min-width:0;}
+          .mob-tool-row{
+            display:flex;flex-wrap:wrap;
+            gap:5px;width:100%;
+            margin-top:2px;
+          }
+          .mob-tool-row .ub{
+            padding:7px 10px !important;
+            font-size:10px !important;
+            letter-spacing:1px !important;
+            flex:1;min-width:70px;
+            text-align:center;
+          }
+
+          /* Main body needs bottom padding for nav bar */
+          .mob-body{padding-bottom:68px !important;}
+
+          /* Canvas sizing on mobile */
+          canvas{max-height:180px !important;}
+          .cw{min-height:100px;}
+
+          /* Bigger touch targets for chips */
+          .ch{
+            font-size:12px !important;
+            padding:8px 13px !important;
+            margin:4px !important;
+          }
+
+          /* Bigger sliders for touch */
+          .sl{height:6px !important;}
+          .sl::-webkit-slider-thumb{
+            width:22px !important;
+            height:22px !important;
+          }
+
+          /* Canvas grid: 2 columns on tablet, 1 on phone */
+          .canvas-grid{
+            grid-template-columns:1fr 1fr !important;
+            gap:8px !important;
+          }
+        }
+
+        @media(max-width:480px){
+          /* Single column canvas on small phones */
+          .canvas-grid{grid-template-columns:1fr !important;}
+          canvas{max-height:220px !important;}
+          .mob-nav-btn{font-size:7px;}
+          .mob-nav-btn span.ico{font-size:17px;}
+        }
+
+        @media(min-width:769px){
+          /* Desktop: hide mobile elements */
+          .mob-nav{display:none !important;}
+          .mob-overlay{display:none !important;}
+          .mob-tool-row{display:none !important;}
+          .canvas-grid{grid-template-columns:1fr 1fr;}
+        }
       `}</style>
 
       {/* QUIZ OVERLAY */}
@@ -1401,7 +1689,7 @@ export default function App(){
       </div>}
 
       {/* SIDEBAR */}
-      <div style={{width:sidebar?248:50,minWidth:sidebar?248:50,background:"#06060e",borderRight:"1px solid rgba(255,255,255,0.05)",display:"flex",flexDirection:"column",transition:"width 0.2s",overflow:"hidden"}}>
+      <div className="desktop-sidebar" style={{width:sidebar?248:50,minWidth:sidebar?248:50,background:"#06060e",borderRight:"1px solid rgba(255,255,255,0.05)",display:"flex",flexDirection:"column",transition:"width 0.2s",overflow:"hidden"}}>
         <div style={{padding:"13px 10px",borderBottom:"1px solid rgba(255,255,255,0.05)",display:"flex",alignItems:"center",gap:8}}>
           <span style={{fontSize:18,flexShrink:0}}>🧠</span>
           {sidebar&&<div style={{fontFamily:"'Orbitron',monospace",fontSize:9.5,fontWeight:600,letterSpacing:2,color:"#4cc9f0",lineHeight:1.4}}>IMAGE<br/>PROCESSING<br/><span style={{fontSize:8,color:"rgba(76,201,240,0.35)"}}>COMPLETE TOOLKIT</span></div>}
@@ -1423,7 +1711,7 @@ export default function App(){
       {/* MAIN */}
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
         {/* Header */}
-        <div style={{padding:"11px 16px",borderBottom:"1px solid rgba(255,255,255,0.05)",display:"flex",alignItems:"center",gap:12,background:"#06060e",flexShrink:0}}>
+        <div style={{padding:"11px 16px",borderBottom:"1px solid rgba(255,255,255,0.05)",display:"flex",alignItems:"center",gap:12,background:"#06060e",flexShrink:0}} className="mob-header">
           <span style={{fontSize:20}}>{activeMod.icon}</span>
           <div style={{flex:1}}>
             <div style={{fontFamily:"'Orbitron',monospace",fontSize:13,fontWeight:600,color:activeMod.color,letterSpacing:1}}>{activeMod.label}</div>
@@ -1437,12 +1725,20 @@ export default function App(){
             <button className="ub" onClick={()=>setDiffMode(d=>!d)} style={{padding:"7px 10px",fontSize:10,borderColor:diffMode?"#f77f00":"rgba(247,127,0,0.3)",color:diffMode?"#f77f00":"rgba(247,127,0,0.6)",background:diffMode?"rgba(247,127,0,0.12)":"transparent"}}>🔀 {diffMode?"DIFF ON":"DIFF"}</button>
             <button className="ub" onClick={()=>{setQuizMode(true);startQuiz();}} style={{padding:"7px 10px",fontSize:10,borderColor:"rgba(67,97,238,0.4)",color:"#4361ee",background:"rgba(67,97,238,0.07)"}}>🧩 QUIZ</button>
           </div>}
+          {/* Mobile tool row */}
+          {!showRegPanel&&<div className="mob-tool-row">
+            <label htmlFor="mobUpload" className="ub" style={{cursor:"pointer",textAlign:"center"}}>⬆ UPLOAD</label>
+            <input id="mobUpload" type="file" accept="image/*" style={{display:"none"}} onChange={handleUpload}/>
+            <button className="ub" onClick={toggleWebcam} style={{background:webcamOn?"rgba(247,37,133,0.15)":undefined,borderColor:webcamOn?"#f72585":undefined,color:webcamOn?"#f72585":undefined}}>{webcamOn?"🔴 STOP":"📷 CAM"}</button>
+            <button className="ub" onClick={exportImage} style={{borderColor:"rgba(6,214,160,0.3)",color:"#06d6a0",background:"rgba(6,214,160,0.07)"}}>💾 SAVE</button>
+            <button className="ub" onClick={()=>setDiffMode(d=>!d)} style={{borderColor:diffMode?"#f77f00":"rgba(247,127,0,0.3)",color:diffMode?"#f77f00":"rgba(247,127,0,0.6)",background:diffMode?"rgba(247,127,0,0.12)":"transparent"}}>🔀 DIFF</button>
+          </div>}
         </div>
 
         {/* Body */}
-        <div style={{flex:1,display:"flex",overflow:"hidden"}}>
+        <div className="mob-body" style={{flex:1,display:"flex",overflow:"hidden"}}>
           {/* LEFT: topics + params + theory */}
-          <div style={{width:260,minWidth:260,borderRight:"1px solid rgba(255,255,255,0.05)",padding:"12px",overflowY:"auto",background:"#070713",flexShrink:0}}>
+          <div className="desktop-left" style={{width:260,minWidth:260,borderRight:"1px solid rgba(255,255,255,0.05)",padding:"12px",overflowY:"auto",background:"#070713",flexShrink:0}}>
             <div className="lbl" style={{marginTop:0}}>Operations</div>
             <div>{activeMod.topics.map(t=>(
               <span key={t} className={`ch${activeTopic===t?" a":""}`}
@@ -1480,7 +1776,7 @@ export default function App(){
           </div>
 
           {/* RIGHT: main content */}
-          <div style={{flex:1,padding:"14px",overflowY:"auto",display:"flex",flexDirection:"column",gap:12}} className="fu">
+          <div style={{flex:1,padding:"14px",overflowY:"auto",display:"flex",flexDirection:"column",gap:12}} className="fu mob-body">
 
             {showRegPanel ? (
               <RegistrationPanel color={activeMod.color}/>
@@ -1507,7 +1803,7 @@ export default function App(){
                   </div>
                 </div>
 
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}} className="mob-canvas-grid">
                   <div>
                     <div className="lbl" style={{marginTop:0}}>Original</div>
                     <div className="cw"><canvas ref={origRef}/></div>
@@ -1536,7 +1832,7 @@ export default function App(){
                   </div>
                 </div>}
 
-                <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}} className="mob-info-grid">
                   {[{icon:activeMod.icon,t:"Module",v:activeMod.label},{icon:"⚙️",t:"Operation",v:activeTopic},{icon:"📋",t:"In Module",v:activeMod.topics.length+" ops"},{icon:"🗂️",t:"Modules",v:MODULES.length+" total"}].map(c=>(
                     <div key={c.t} className="ic"><div style={{fontSize:15,marginBottom:4}}>{c.icon}</div><div style={{fontSize:9,letterSpacing:2,color:"rgba(255,255,255,0.22)",marginBottom:3}}>{c.t.toUpperCase()}</div><div style={{fontSize:11,color:activeMod.color}}>{c.v}</div></div>
                   ))}
