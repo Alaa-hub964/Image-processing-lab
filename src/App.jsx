@@ -1550,20 +1550,22 @@ export default function App(){
         .mob-overlay{display:none;}
 
         @media(max-width:768px){
-          /* Hide desktop sidebar and left panel */
+          /* Hide desktop sidebar, left panel and desktop tool buttons */
           .desktop-sidebar{display:none !important;}
           .desktop-left{display:none !important;}
+          .desktop-tools{display:none !important;}
 
           /* Bottom navigation bar */
           .mob-nav{
-            display:flex;
+            display:flex !important;
             position:fixed;bottom:0;left:0;right:0;
             height:60px;
             background:#06060e;
-            border-top:1px solid rgba(255,255,255,0.1);
-            z-index:200;
+            border-top:1px solid rgba(255,255,255,0.15);
+            z-index:9999;
             align-items:stretch;
             padding:0 4px;
+            box-shadow:0 -4px 20px rgba(0,0,0,0.6);
           }
           .mob-nav-btn{
             flex:1;background:none;border:none;
@@ -1584,12 +1586,13 @@ export default function App(){
           /* Full-screen overlays for modules and ops panels */
           .mob-overlay{
             display:none;
-            position:fixed;top:0;left:0;right:0;bottom:60px;
+            position:fixed;top:54px;left:0;right:0;bottom:60px;
             background:#06060e;
-            z-index:150;
+            z-index:500;
             overflow-y:auto;
             padding:14px 14px 20px;
             animation:fu 0.18s ease;
+            border-top:1px solid rgba(255,255,255,0.06);
           }
           .mob-overlay.open{display:block;}
 
@@ -1615,7 +1618,7 @@ export default function App(){
           }
 
           /* Main body needs bottom padding for nav bar */
-          .mob-body{padding-bottom:68px !important;}
+          .mob-body{padding-bottom:68px !important;overflow-y:auto;}
 
           /* Canvas sizing on mobile */
           canvas{max-height:180px !important;}
@@ -1655,6 +1658,7 @@ export default function App(){
           .mob-nav{display:none !important;}
           .mob-overlay{display:none !important;}
           .mob-tool-row{display:none !important;}
+          .desktop-tools{display:flex !important;}
           .canvas-grid{grid-template-columns:1fr 1fr;}
         }
       `}</style>
@@ -1717,7 +1721,7 @@ export default function App(){
             <div style={{fontFamily:"'Orbitron',monospace",fontSize:13,fontWeight:600,color:activeMod.color,letterSpacing:1}}>{activeMod.label}</div>
             <div style={{fontSize:10,color:"rgba(255,255,255,0.28)",marginTop:1}}>{MODULES.length} modules · {activeMod.topics.length} ops</div>
           </div>
-          {!showRegPanel&&<div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+          {!showRegPanel&&<div className="desktop-tools" style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
             <label htmlFor="mainUpload" className="ub" style={{cursor:"pointer"}}>⬆ UPLOAD</label>
             <input id="mainUpload" ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={handleUpload}/>
             <button className="ub" onClick={toggleWebcam} style={{padding:"7px 10px",fontSize:10,background:webcamOn?"rgba(247,37,133,0.15)":"rgba(76,201,240,0.07)",borderColor:webcamOn?"#f72585":"rgba(76,201,240,0.3)",color:webcamOn?"#f72585":"#4cc9f0"}}>{webcamOn?"🔴 STOP":"📷 CAM"}</button>
@@ -1725,13 +1729,14 @@ export default function App(){
             <button className="ub" onClick={()=>setDiffMode(d=>!d)} style={{padding:"7px 10px",fontSize:10,borderColor:diffMode?"#f77f00":"rgba(247,127,0,0.3)",color:diffMode?"#f77f00":"rgba(247,127,0,0.6)",background:diffMode?"rgba(247,127,0,0.12)":"transparent"}}>🔀 {diffMode?"DIFF ON":"DIFF"}</button>
             <button className="ub" onClick={()=>{setQuizMode(true);startQuiz();}} style={{padding:"7px 10px",fontSize:10,borderColor:"rgba(67,97,238,0.4)",color:"#4361ee",background:"rgba(67,97,238,0.07)"}}>🧩 QUIZ</button>
           </div>}
-          {/* Mobile tool row */}
+          {/* Mobile tool row - only shows on mobile */}
           {!showRegPanel&&<div className="mob-tool-row">
-            <label htmlFor="mobUpload" className="ub" style={{cursor:"pointer",textAlign:"center"}}>⬆ UPLOAD</label>
+            <label htmlFor="mobUpload" className="ub" style={{cursor:"pointer",textAlign:"center",flex:1}}>⬆ IMG</label>
             <input id="mobUpload" type="file" accept="image/*" style={{display:"none"}} onChange={handleUpload}/>
-            <button className="ub" onClick={toggleWebcam} style={{background:webcamOn?"rgba(247,37,133,0.15)":undefined,borderColor:webcamOn?"#f72585":undefined,color:webcamOn?"#f72585":undefined}}>{webcamOn?"🔴 STOP":"📷 CAM"}</button>
-            <button className="ub" onClick={exportImage} style={{borderColor:"rgba(6,214,160,0.3)",color:"#06d6a0",background:"rgba(6,214,160,0.07)"}}>💾 SAVE</button>
-            <button className="ub" onClick={()=>setDiffMode(d=>!d)} style={{borderColor:diffMode?"#f77f00":"rgba(247,127,0,0.3)",color:diffMode?"#f77f00":"rgba(247,127,0,0.6)",background:diffMode?"rgba(247,127,0,0.12)":"transparent"}}>🔀 DIFF</button>
+            <button className="ub" onClick={toggleWebcam} style={{flex:1,background:webcamOn?"rgba(247,37,133,0.15)":undefined,borderColor:webcamOn?"#f72585":undefined,color:webcamOn?"#f72585":undefined}}>{webcamOn?"🔴 OFF":"📷 CAM"}</button>
+            <button className="ub" onClick={exportImage} style={{flex:1,borderColor:"rgba(6,214,160,0.3)",color:"#06d6a0",background:"rgba(6,214,160,0.07)"}}>💾</button>
+            <button className="ub" onClick={()=>setDiffMode(d=>!d)} style={{flex:1,borderColor:diffMode?"#f77f00":"rgba(247,127,0,0.3)",color:diffMode?"#f77f00":"rgba(247,127,0,0.6)",background:diffMode?"rgba(247,127,0,0.12)":"transparent"}}>🔀</button>
+            <button className="ub" onClick={()=>{setQuizMode(true);startQuiz();}} style={{flex:1,borderColor:"rgba(67,97,238,0.4)",color:"#4361ee",background:"rgba(67,97,238,0.07)"}}>🧩</button>
           </div>}
         </div>
 
