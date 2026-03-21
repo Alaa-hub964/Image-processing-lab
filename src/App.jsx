@@ -894,6 +894,31 @@ function Histogram({imageData,label}){
 // ----------------------------------------------------------
 // REGISTRATION PANEL
 // ----------------------------------------------------------
+class ErrorBoundary extends React.Component{
+  constructor(props){super(props);this.state={hasError:false,error:null};}
+  static getDerivedStateFromError(error){return{hasError:true,error};}
+  componentDidCatch(error,info){console.error("Module crash:",error,info);}
+  render(){
+    if(this.state.hasError){
+      return(
+        <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"60vh",gap:16,color:"rgba(255,255,255,0.5)"}}>
+          <div style={{fontSize:40}}>⚠️</div>
+          <div style={{fontFamily:"'Orbitron',monospace",fontSize:13,color:"#f72585",letterSpacing:2}}>MODULE ERROR</div>
+          <div style={{fontSize:11,color:"rgba(255,255,255,0.35)",maxWidth:400,textAlign:"center",lineHeight:1.7}}>
+            {this.state.error?.message||"An unexpected error occurred in this module."}
+          </div>
+          <button onClick={()=>this.setState({hasError:false,error:null})}
+            style={{background:"rgba(247,37,133,0.1)",border:"1px solid #f72585",color:"#f72585",
+              padding:"8px 20px",cursor:"pointer",borderRadius:3,fontFamily:"monospace",fontSize:11,letterSpacing:2}}>
+            ↺ RETRY
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 function RegistrationPanel({color}){
   const [img1,setImg1]=useState(null);
   const [img2,setImg2]=useState(null);
@@ -1325,9 +1350,21 @@ export default function App(){
 
   useEffect(()=>{
     if(!origData||showRegPanel) return;
-    const result=processImg(origData,activeMod.id,activeTopic,params);
-    setProcData(result);
-    if(procRef.current){procRef.current.width=result.width;procRef.current.height=result.height;procRef.current.getContext("2d").putImageData(result,0,0);}
+    try{
+      const result=processImg(origData,activeMod.id,activeTopic,params);
+      setProcData(result);
+      if(procRef.current){procRef.current.width=result.width;procRef.current.height=result.height;procRef.current.getContext("2d").putImageData(result,0,0);}
+    }catch(err){
+      console.error("processImg crash:",activeMod.id,activeTopic,err);
+      // Show error on canvas
+      if(procRef.current){
+        const c=procRef.current;c.width=320;c.height=160;
+        const ctx=c.getContext("2d");
+        ctx.fillStyle="#0a0a1a";ctx.fillRect(0,0,320,160);
+        ctx.fillStyle="#f72585";ctx.font="12px monospace";
+        ctx.fillText("⚠ Operation error: "+err.message.slice(0,40),10,80);
+      }
+    }
   },[origData,activeMod,activeTopic,params,showRegPanel]);
 
   const handleUpload=useCallback((e)=>{
@@ -1784,7 +1821,9 @@ export default function App(){
           <div style={{flex:1,padding:"14px",overflowY:"auto",display:"flex",flexDirection:"column",gap:12}} className="fu mob-body">
 
             {showRegPanel ? (
-              <RegistrationPanel color={activeMod.color}/>
+              <ErrorBoundary key={activeMod.id+activeTopic}>
+                <RegistrationPanel color={activeMod.color}/>
+              </ErrorBoundary>
             ) : (
               <>
                 <div style={{display:webcamOn?"block":"none",marginBottom:12,background:"#06060e",border:"1px solid rgba(247,37,133,0.3)",borderRadius:4,padding:10}}>
@@ -1808,7 +1847,7 @@ export default function App(){
                   </div>
                 </div>
 
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}} className="mob-canvas-grid">
+                <div className="canvas-grid" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
                   <div>
                     <div className="lbl" style={{marginTop:0}}>Original</div>
                     <div className="cw"><canvas ref={origRef}/></div>
