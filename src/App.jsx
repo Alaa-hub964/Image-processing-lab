@@ -119,6 +119,8 @@ function processImg(src, modId, topic, params={}) {
   // -- INTENSITY --
   if (modId==="intensity") {
     const g=params.gamma||1, T=params.thresh||128, plane=params.plane||7, k=params.k||0.1;
+    // Pre-compute for Histogram Stretch — must be OUTSIDE the pixel loop
+    const _hsMin=arrMin(gray),_hsMax=arrMax(gray),_hsRng=_hsMax-_hsMin;
     for(let i=0;i<N;i++){
       let r=data[i*4],g2=data[i*4+1],b=data[i*4+2],v;
       if(topic==="Negative"){out[i*4]=255-r;out[i*4+1]=255-g2;out[i*4+2]=255-b;}
@@ -128,7 +130,7 @@ function processImg(src, modId, topic, params={}) {
       else if(topic==="Bit-plane Slicing"){v=((Math.round(gray[i])>>plane)&1)*255;out[i*4]=out[i*4+1]=out[i*4+2]=v;}
       else if(topic==="Thresholding"){v=gray[i]>=T?255:0;out[i*4]=out[i*4+1]=out[i*4+2]=v;}
       else if(topic==="Sigmoid"){v=Math.round(255/(1+Math.exp(-k*(gray[i]-128))));out[i*4]=out[i*4+1]=out[i*4+2]=v;}
-      else if(topic==="Histogram Stretch"){const mn2=arrMin(gray),mx2=arrMax(gray),rng2=mx2-mn2||1;v=Math.round((gray[i]-mn2)/rng2*255);out[i*4]=out[i*4+1]=out[i*4+2]=v;}
+      else if(topic==="Histogram Stretch"){v=Math.round((gray[i]-_hsMin)/(_hsRng||1)*255);out[i*4]=out[i*4+1]=out[i*4+2]=v;}
       out[i*4+3]=255;
     }
   }
