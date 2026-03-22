@@ -757,58 +757,145 @@ function processImg(src, modId, topic, params = {}) {
 
   // -- OPTICAL FLOW --
   else if (modId === "opticalflow") {
-    // Simulate optical flow using spatial gradients as proxy
+    // ── Spatial gradients (used as proxy for optical flow on single image) ──
     const Ix = convolve(gray, W, H, [[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]]);
     const Iy = convolve(gray, W, H, [[-1, -2, -1], [0, 0, 0], [1, 2, 1]]);
-    // Simulate It using local gradient divergence
-    const It = convolve(gray, W, H, [[1, 2, 1], [2, 4, 2], [1, 2, 1]].map(r => r.map(v => v / 16))).map((v, i) => v - gray[i]);
-    const winSz = 8;
+    // It: simulate temporal gradient using difference between blurred versions at 2 scales
+    const blurS = convolve(gray, W, H, GAUSS);
+    const blurL = convolve(blurS, W, H, GAUSS); // double blur = coarser scale
+    const It = new Float32Array(N);
+    for (let i = 0; i < N; i++) It[i] = (blurL[i] - blurS[i]) * 3; // amplified scale difference
+
+    // ── Lucas-Kanade windowed flow ──
+    const winSz = 4; // smaller window = faster + sharper
     const u = new Float32Array(N), v2 = new Float32Array(N);
-    if (topic === "Lucas-Kanade Sim" || topic === "Flow Vectors" || topic === "Sparse Flow") {
-      for (let y = winSz; y < H - winSz; y++) for (let x = winSz; x < W - winSz; x++) {
-        let Ixx = 0, Iyy = 0, Ixy = 0, Ixt = 0, Iyt = 0;
-        for (let dy = -winSz; dy <= winSz; dy++) for (let dx = -winSz; dx <= winSz; dx++) {
-          const i2 = (y + dy) * W + (x + dx);
-          Ixx += Ix[i2] * Ix[i2]; Iyy += Iy[i2] * Iy[i2]; Ixy += Ix[i2] * Iy[i2];
-          Ixt += Ix[i2] * It[i2]; Iyt += Iy[i2] * It[i2];
-        }
-        const det = Ixx * Iyy - Ixy * Ixy || 0.001;
-        u[y * W + x] = -(Iyy * Ixt - Ixy * Iyt) / det;
-        v2[y * W + x] = -(Ixx * Iyt - Ixy * Ixt) / det;
+    for (let y = winSz; y < H - winSz; y++) for (let x = winSz; x < W - winSz; x++) {
+      let Ixx = 0, Iyy = 0, Ixy = 0, Ixt = 0, Iyt = 0;
+      for (let dy = -winSz; dy <= winSz; dy++) for (let dx = -winSz; dx <= winSz; dx++) {
+        const i2 = (y + dy) * W + (x + dx);
+        Ixx += Ix[i2] * Ix[i2]; Iyy += Iy[i2] * Iy[i2]; Ixy += Ix[i2] * Iy[i2];
+        Ixt += Ix[i2] * It[i2]; Iyt += Iy[i2] * It[i2];
       }
-    } else {
-      for (let i2 = 0; i2 < N; i2++) { const det = Ix[i2] * Ix[i2] * Iy[i2] * Iy[i2] - (Ix[i2] * Iy[i2]) * (Ix[i2] * Iy[i2]) || 0.001; u[i2] = -(Iy[i2] * Iy[i2] * Ix[i2] * It[i2]) / det; v2[i2] = -(Ix[i2] * Ix[i2] * Iy[i2] * It[i2]) / det; }
+      const det = Ixx * Iyy - Ixy * Ixy;
+      if (Math.abs(det) > 0.01) {
+        u[y * W + x] = Math.max(-20, Math.min(20, -(Iyy * Ixt - Ixy * Iyt) / det));
+        v2[y * W + x] = Math.max(-20, Math.min(20, -(Ixx * Iyt - Ixy * Ixt) / det));
+      }
     }
-    let _mfu = 0, _mfv = 0; for (let i = 0; i < N; i++) { const au = Math.abs(u[i]), av2 = Math.abs(v2[i]); if (au > _mfu) _mfu = au; if (av2 > _mfv) _mfv = av2; }
-    const maxFlow = Math.max(_mfu, _mfv) || 1;
-    if (topic === "Magnitude Map" || topic === "Dense Flow") {
-      for (let i2 = 0; i2 < N; i2++) { const mag = Math.min(255, Math.round(Math.sqrt(u[i2] * u[i2] + v2[i2] * v2[i2]) / maxFlow * 255)); out[i2 * 4] = mag; out[i2 * 4 + 1] = Math.round(mag * 0.5); out[i2 * 4 + 2] = 255 - mag; out[i2 * 4 + 3] = 255; }
-    } else if (topic === "Direction Map") {
-      for (let i2 = 0; i2 < N; i2++) { const a = (Math.atan2(v2[i2], u[i2]) + Math.PI) / (2 * Math.PI); out[i2 * 4] = Math.round(a * 255); out[i2 * 4 + 1] = Math.round((1 - a) * 200); out[i2 * 4 + 2] = 128; out[i2 * 4 + 3] = 255; }
-    } else if (topic === "Flow HSV") {
-      for (let i2 = 0; i2 < N; i2++) { const a = (Math.atan2(v2[i2], u[i2]) + Math.PI) / (2 * Math.PI); const mag = Math.min(1, Math.sqrt(u[i2] * u[i2] + v2[i2] * v2[i2]) / maxFlow); const h = a * 360, s = mag, vv = 0.8 + mag * 0.2; const c2 = vv * s, x2 = c2 * (1 - Math.abs((h / 60) % 2 - 1)), m = vv - c2; let r2 = 0, g2 = 0, b2 = 0; if (h < 60) { r2 = c2; g2 = x2; } else if (h < 120) { r2 = x2; g2 = c2; } else if (h < 180) { g2 = c2; b2 = x2; } else if (h < 240) { g2 = x2; b2 = c2; } else if (h < 300) { r2 = x2; b2 = c2; } else { r2 = c2; b2 = x2; } out[i2 * 4] = Math.round((r2 + m) * 255); out[i2 * 4 + 1] = Math.round((g2 + m) * 255); out[i2 * 4 + 2] = Math.round((b2 + m) * 255); out[i2 * 4 + 3] = 255; }
-    } else if (topic === "Temporal Diff" || topic === "Frame Blend") {
-      const blurred = convolve(gray, W, H, [[1, 2, 1], [2, 4, 2], [1, 2, 1]].map(r => r.map(v => v / 16)));
-      for (let i2 = 0; i2 < N; i2++) { const d = Math.abs(gray[i2] - blurred[i2]) * 3; const v = Math.min(255, Math.round(d)); out[i2 * 4] = v; out[i2 * 4 + 1] = Math.round(gray[i2] * 0.5); out[i2 * 4 + 2] = 255 - v; out[i2 * 4 + 3] = 255; }
-    } else if (topic === "Motion Edges") {
-      for (let i2 = 0; i2 < N; i2++) { const mag = Math.min(255, Math.round(Math.sqrt(u[i2] * u[i2] + v2[i2] * v2[i2]) / maxFlow * 3 * 255)); const edge = Math.min(255, Math.round(Math.sqrt(Ix[i2] * Ix[i2] + Iy[i2] * Iy[i2]))); out[i2 * 4] = Math.round(edge * 0.4 + mag * 0.6); out[i2 * 4 + 1] = Math.round(edge); out[i2 * 4 + 2] = 0; out[i2 * 4 + 3] = 255; }
-    } else if (topic === "Flow Vectors" || topic === "Lucas-Kanade Sim" || topic === "Sparse Flow") {
-      for (let i2 = 0; i2 < N; i2++) { out[i2 * 4] = Math.round(data[i2 * 4] * 0.4); out[i2 * 4 + 1] = Math.round(data[i2 * 4 + 1] * 0.4); out[i2 * 4 + 2] = Math.round(data[i2 * 4 + 2] * 0.4); out[i2 * 4 + 3] = 255; }
-      // Will overlay arrows after
+
+    // ── Horn-Schunck iterative smoothing ──
+    const uHS = new Float32Array(u), vHS = new Float32Array(v2);
+    if (topic === "Horn-Schunck Sim") {
+      for (let iter = 0; iter < 5; iter++) {
+        const su = convolve(uHS, W, H, MEAN), sv = convolve(vHS, W, H, MEAN);
+        for (let i = 0; i < N; i++) {
+          const denom = Ix[i] * Ix[i] + Iy[i] * Iy[i] + 0.1;
+          const num = Ix[i] * su[i] + Iy[i] * sv[i] + It[i];
+          uHS[i] = su[i] - Ix[i] * num / denom;
+          vHS[i] = sv[i] - Iy[i] * num / denom;
+        }
+      }
+    }
+
+    // ── maxFlow for normalisation ──
+    let _mfu = 0, _mfv = 0;
+    for (let i = 0; i < N; i++) { const au = Math.abs(u[i]), av2 = Math.abs(v2[i]); if (au > _mfu) _mfu = au; if (av2 > _mfv) _mfv = av2; }
+    const maxFlow = Math.max(_mfu, _mfv, 0.1);
+
+    // ── helper: draw arrow on canvas buffer ──
+    const drawArrow = (ox, oy, dx, dy, r, g, b) => {
+      const len = Math.sqrt(dx * dx + dy * dy); if (len < 0.3) return;
+      const ex = Math.round(ox + dx), ey = Math.round(oy + dy);
+      // Bresenham line
+      let cx2 = ox, cy2 = oy; const steps = Math.max(Math.abs(ex - ox), Math.abs(ey - oy));
+      for (let s = 0; s <= steps; s++) {
+        const px2 = Math.round(ox + (ex - ox) * s / Math.max(steps, 1));
+        const py2 = Math.round(oy + (ey - oy) * s / Math.max(steps, 1));
+        if (px2 >= 0 && px2 < W && py2 >= 0 && py2 < H) { const idx = (py2 * W + px2) * 4; out[idx] = r; out[idx + 1] = g; out[idx + 2] = b; out[idx + 3] = 255; }
+      }
+      // arrowhead
+      const ah = 3, angle = Math.atan2(dy, dx);
+      for (const aa of [angle + 2.5, angle - 2.5]) {
+        const hx = Math.round(ex + ah * Math.cos(aa)), hy = Math.round(ey + ah * Math.sin(aa));
+        if (hx >= 0 && hx < W && hy >= 0 && hy < H) { const idx = (hy * W + hx) * 4; out[idx] = r; out[idx + 1] = g; out[idx + 2] = b; out[idx + 3] = 255; }
+      }
+    };
+
+    if (topic === "Lucas-Kanade Sim" || topic === "Flow Vectors" || topic === "Sparse Flow") {
+      // Dark background + flow arrows on a grid
+      for (let i2 = 0; i2 < N; i2++) { out[i2 * 4] = Math.round(data[i2 * 4] * 0.35); out[i2 * 4 + 1] = Math.round(data[i2 * 4 + 1] * 0.35); out[i2 * 4 + 2] = Math.round(data[i2 * 4 + 2] * 0.35); out[i2 * 4 + 3] = 255; }
+      const step = topic === "Sparse Flow" ? 24 : 16;
+      for (let y = step; y < H - step; y += step) for (let x = step; x < W - step; x += step) {
+        const ux = u[y * W + x], vy = v2[y * W + x];
+        const scale = 8 / maxFlow;
+        const mag = Math.sqrt(ux * ux + vy * vy) / maxFlow;
+        const r = Math.round(255 * Math.min(1, mag * 2));
+        const g = Math.round(255 * Math.max(0, 1 - mag * 2));
+        drawArrow(x, y, ux * scale, vy * scale, r, g, 50);
+      }
     } else if (topic === "Horn-Schunck Sim") {
-      const smooth = convolve(new Float32Array(u), W, H, MEAN);
-      for (let i2 = 0; i2 < N; i2++) { const mag = Math.min(255, Math.round(Math.abs(smooth[i2]) / maxFlow * 255 * 3)); out[i2 * 4] = mag; out[i2 * 4 + 1] = Math.round((1 - mag / 255) * 200); out[i2 * 4 + 2] = Math.round(gray[i2] * 0.5); out[i2 * 4 + 3] = 255; }
+      for (let i2 = 0; i2 < N; i2++) { out[i2 * 4] = Math.round(data[i2 * 4] * 0.35); out[i2 * 4 + 1] = Math.round(data[i2 * 4 + 1] * 0.35); out[i2 * 4 + 2] = Math.round(data[i2 * 4 + 2] * 0.35); out[i2 * 4 + 3] = 255; }
+      let _mfuhs = 0, _mfvhs = 0; for (let i = 0; i < N; i++) { const au = Math.abs(uHS[i]), av = Math.abs(vHS[i]); if (au > _mfuhs) _mfuhs = au; if (av > _mfvhs) _mfvhs = av; }
+      const mfhs = Math.max(_mfuhs, _mfvhs, 0.1);
+      for (let y = 16; y < H - 16; y += 16) for (let x = 16; x < W - 16; x += 16) {
+        const ux = uHS[y * W + x], vy = vHS[y * W + x];
+        const scale = 8 / mfhs;
+        drawArrow(x, y, ux * scale, vy * scale, 100, 200, 255);
+      }
+    } else if (topic === "Magnitude Map" || topic === "Dense Flow") {
+      for (let i2 = 0; i2 < N; i2++) {
+        const mag = Math.min(1, Math.sqrt(u[i2] * u[i2] + v2[i2] * v2[i2]) / maxFlow);
+        out[i2 * 4] = Math.round(mag * 255); out[i2 * 4 + 1] = Math.round(mag * 100); out[i2 * 4 + 2] = Math.round((1 - mag) * 255); out[i2 * 4 + 3] = 255;
+      }
+    } else if (topic === "Direction Map") {
+      for (let i2 = 0; i2 < N; i2++) {
+        const mag = Math.sqrt(u[i2] * u[i2] + v2[i2] * v2[i2]);
+        if (mag < 0.05) { out[i2 * 4] = 20; out[i2 * 4 + 1] = 20; out[i2 * 4 + 2] = 20; out[i2 * 4 + 3] = 255; continue; }
+        const a = (Math.atan2(v2[i2], u[i2]) + Math.PI) / (2 * Math.PI);
+        out[i2 * 4] = Math.round(a * 255); out[i2 * 4 + 1] = Math.round((1 - a) * 200); out[i2 * 4 + 2] = Math.round(128 * mag / maxFlow); out[i2 * 4 + 3] = 255;
+      }
+    } else if (topic === "Flow HSV") {
+      for (let i2 = 0; i2 < N; i2++) {
+        const mag = Math.min(1, Math.sqrt(u[i2] * u[i2] + v2[i2] * v2[i2]) / maxFlow);
+        const a = (Math.atan2(v2[i2], u[i2]) + Math.PI) / (2 * Math.PI);
+        const h = a * 360, s = mag, vv = 0.6 + mag * 0.4;
+        const c2 = vv * s, x2 = c2 * (1 - Math.abs((h / 60) % 2 - 1)), m = vv - c2;
+        let r2 = 0, g2 = 0, b2 = 0;
+        if (h < 60) { r2 = c2; g2 = x2; } else if (h < 120) { r2 = x2; g2 = c2; } else if (h < 180) { g2 = c2; b2 = x2; }
+        else if (h < 240) { g2 = x2; b2 = c2; } else if (h < 300) { r2 = x2; b2 = c2; } else { r2 = c2; b2 = x2; }
+        out[i2 * 4] = Math.round((r2 + m) * 255); out[i2 * 4 + 1] = Math.round((g2 + m) * 255); out[i2 * 4 + 2] = Math.round((b2 + m) * 255); out[i2 * 4 + 3] = 255;
+      }
+    } else if (topic === "Temporal Diff") {
+      for (let i2 = 0; i2 < N; i2++) {
+        const d = Math.min(255, Math.abs(It[i2]) * 8);
+        out[i2 * 4] = Math.round(d); out[i2 * 4 + 1] = Math.round(d * 0.3); out[i2 * 4 + 2] = Math.round(255 - d); out[i2 * 4 + 3] = 255;
+      }
+    } else if (topic === "Frame Blend") {
+      for (let i2 = 0; i2 < N; i2++) {
+        const v = Math.round(gray[i2] * 0.6 + blurL[i2] * 0.4);
+        out[i2 * 4] = out[i2 * 4 + 1] = out[i2 * 4 + 2] = Math.min(255, v); out[i2 * 4 + 3] = 255;
+      }
+    } else if (topic === "Motion Edges") {
+      for (let i2 = 0; i2 < N; i2++) {
+        const mag = Math.min(255, Math.round(Math.sqrt(u[i2] * u[i2] + v2[i2] * v2[i2]) / maxFlow * 255));
+        const edge = Math.min(255, Math.round(Math.sqrt(Ix[i2] * Ix[i2] + Iy[i2] * Iy[i2])));
+        out[i2 * 4] = Math.round(edge * 0.3 + mag * 0.7); out[i2 * 4 + 1] = Math.round(edge); out[i2 * 4 + 2] = Math.round(mag * 0.5); out[i2 * 4 + 3] = 255;
+      }
     } else if (topic === "Flow Warp") {
       const warped = new Uint8ClampedArray(W * H * 4);
       for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-        const sx = Math.max(0, Math.min(W - 1, Math.round(x + u[y * W + x] * 5)));
-        const sy = Math.max(0, Math.min(H - 1, Math.round(y + v2[y * W + x] * 5)));
+        const sx = Math.max(0, Math.min(W - 1, Math.round(x + u[y * W + x] * 8)));
+        const sy = Math.max(0, Math.min(H - 1, Math.round(y + v2[y * W + x] * 8)));
         const si = (sy * W + sx) * 4, di = (y * W + x) * 4;
         warped[di] = data[si]; warped[di + 1] = data[si + 1]; warped[di + 2] = data[si + 2]; warped[di + 3] = 255;
       }
       return new ImageData(warped, W, H);
     } else {
-      for (let i2 = 0; i2 < N; i2++) { const v = Math.min(255, Math.round(Math.sqrt(u[i2] * u[i2] + v2[i2] * v2[i2]) / maxFlow * 255)); out[i2 * 4] = v; out[i2 * 4 + 1] = 0; out[i2 * 4 + 2] = 255 - v; out[i2 * 4 + 3] = 255; }
+      // fallback: gradient magnitude coloured
+      for (let i2 = 0; i2 < N; i2++) {
+        const v = Math.min(255, Math.round(Math.sqrt(u[i2] * u[i2] + v2[i2] * v2[i2]) / maxFlow * 255));
+        out[i2 * 4] = v; out[i2 * 4 + 1] = Math.round(v * 0.4); out[i2 * 4 + 2] = 255 - v; out[i2 * 4 + 3] = 255;
+      }
     }
   }
 
