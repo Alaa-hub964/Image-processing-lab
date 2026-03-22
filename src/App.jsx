@@ -1099,90 +1099,6 @@ function RegistrationPanel({color}){
         </div>
       </div>}
 
-      {/* ── MOBILE BOTTOM NAV ─────────────────────────────── */}
-      <nav className="mob-nav" style={{"--mc":activeMod.color}}>
-        {[
-          {id:'modules', ico:'🧠', label:'MODULES'},
-          {id:'ops',     ico:activeMod.icon, label:'OPS'},
-          {id:'canvas',  ico:'🖼️', label:'CANVAS'},
-          {id:'theory',  ico:'📖', label:'THEORY'},
-        ].map(tab=>(
-          <button key={tab.id} className={`mob-nav-btn${mobTab===tab.id?' a':''}`}
-            onClick={()=>setMobTab(t=>t===tab.id&&tab.id!=='canvas'?'canvas':tab.id)}>
-            <span className="ico">{tab.ico}</span>
-            {tab.label}
-          </button>
-        ))}
-      </nav>
-
-      {/* ── MOBILE MODULES OVERLAY ─────────────────────────── */}
-      <div className={`mob-overlay${mobTab==='modules'?' open':''}`}>
-        <div style={{fontFamily:"'Orbitron',monospace",fontSize:10,color:"#4cc9f0",letterSpacing:2,marginBottom:12}}>SELECT MODULE</div>
-        {MODULES.map(mod=>(
-          <button key={mod.id} onClick={()=>{selMod(mod);setMobTab('ops');}}
-            style={{width:"100%",background:activeMod.id===mod.id?"rgba(255,255,255,0.07)":"transparent",
-              border:"none",borderLeft:`3px solid ${activeMod.id===mod.id?mod.color:"transparent"}`,
-              color:activeMod.id===mod.id?mod.color:"rgba(255,255,255,0.5)",
-              padding:"12px 14px",cursor:"pointer",textAlign:"left",
-              fontFamily:"'Share Tech Mono',monospace",fontSize:12,
-              display:"flex",alignItems:"center",gap:10,marginBottom:2}}>
-            <span style={{fontSize:20}}>{mod.icon}</span>
-            {mod.label}
-          </button>
-        ))}
-      </div>
-
-      {/* ── MOBILE OPS OVERLAY ─────────────────────────────── */}
-      <div className={`mob-overlay${mobTab==='ops'?' open':''}`}>
-        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
-          <span style={{fontSize:22}}>{activeMod.icon}</span>
-          <div style={{fontFamily:"'Orbitron',monospace",fontSize:11,color:activeMod.color,letterSpacing:1}}>{activeMod.label}</div>
-        </div>
-        <div style={{marginBottom:16}}>
-          {activeMod.topics.map(t=>(
-            <span key={t} className={`ch${activeTopic===t?' a':''}`}
-              style={{"--c":activeMod.color,"--cb":activeMod.color+"1a"}}
-              onClick={()=>{setActiveTopic(t);setMobTab('canvas');}}>
-              {t}
-            </span>
-          ))}
-        </div>
-        {curParams.length>0&&<>
-          <div className="lbl" style={{marginTop:0}}>Parameters</div>
-          {curParams.map(p=>(
-            <div key={p.key} style={{marginBottom:16}}>
-              <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
-                <span style={{fontSize:11,color:"rgba(255,255,255,0.5)"}}>{p.label}</span>
-                <span style={{fontSize:11,color:activeMod.color}}>{params[p.key]}</span>
-              </div>
-              <input type="range" className="sl" style={{"--c":activeMod.color}}
-                min={p.min} max={p.max} step={p.step} value={params[p.key]||p.min}
-                onChange={e=>setParams(prev=>({...prev,[p.key]:parseFloat(e.target.value)}))}/>
-            </div>
-          ))}
-        </>}
-      </div>
-
-      {/* ── MOBILE THEORY OVERLAY ──────────────────────────── */}
-      <div className={`mob-overlay${mobTab==='theory'?' open':''}`}>
-        <div className="lbl" style={{marginTop:0}}>Theory — {activeMod.label}</div>
-        {Object.entries(activeMod.theory||{}).map(([k,v])=>(
-          <div key={k} style={{marginBottom:8}}>
-            <div onClick={()=>setTheory(theory===k?null:k)}
-              style={{cursor:"pointer",padding:"10px 12px",background:"rgba(255,255,255,0.03)",
-                border:"1px solid rgba(255,255,255,0.07)",borderRadius:3,
-                color:theory===k?activeMod.color:"rgba(255,255,255,0.6)",fontSize:12}}>
-              {theory===k?"▼":"▶"} {k}
-            </div>
-            {theory===k&&<div style={{padding:"10px 12px",background:"rgba(255,255,255,0.02)",
-              border:"1px solid rgba(255,255,255,0.05)",borderTop:"none",
-              fontSize:11,lineHeight:1.8,color:"rgba(255,255,255,0.55)"}}>
-              {v}
-            </div>}
-          </div>
-        ))}
-      </div>
-    </div>
   );
 }
 
@@ -1809,6 +1725,89 @@ export default function App(){
             </div>
           </div>
         </div>
+      </div>
+      {/* ── MOBILE BOTTOM NAV ─────────────────────────────── */}
+      <nav className="mob-nav" style={{"--mc":activeMod.color}}>
+        {[
+          {id:'modules', ico:'🧠', label:'MODULES'},
+          {id:'ops',     ico:activeMod.icon, label:'OPS'},
+          {id:'canvas',  ico:'🖼️', label:'CANVAS'},
+          {id:'theory',  ico:'📖', label:'THEORY'},
+        ].map(tab=>(
+          <button key={tab.id} className={`mob-nav-btn${mobTab===tab.id?' a':''}`}
+            onClick={()=>setMobTab(t=>t===tab.id&&tab.id!=='canvas'?'canvas':tab.id)}>
+            <span className="ico">{tab.ico}</span>
+            {tab.label}
+          </button>
+        ))}
+      </nav>
+
+      {/* ── MOBILE MODULES OVERLAY ─────────────────────────── */}
+      <div className={`mob-overlay${mobTab==='modules'?' open':''}`}>
+        <div style={{fontFamily:"'Orbitron',monospace",fontSize:10,color:"#4cc9f0",letterSpacing:2,marginBottom:12}}>SELECT MODULE</div>
+        {MODULES.map(mod=>(
+          <button key={mod.id} onClick={()=>{selMod(mod);setMobTab('ops');}}
+            style={{width:"100%",background:activeMod.id===mod.id?"rgba(255,255,255,0.07)":"transparent",
+              border:"none",borderLeft:`3px solid ${activeMod.id===mod.id?mod.color:"transparent"}`,
+              color:activeMod.id===mod.id?mod.color:"rgba(255,255,255,0.5)",
+              padding:"12px 14px",cursor:"pointer",textAlign:"left",
+              fontFamily:"'Share Tech Mono',monospace",fontSize:12,
+              display:"flex",alignItems:"center",gap:10,marginBottom:2}}>
+            <span style={{fontSize:20}}>{mod.icon}</span>
+            {mod.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── MOBILE OPS OVERLAY ─────────────────────────────── */}
+      <div className={`mob-overlay${mobTab==='ops'?' open':''}`}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
+          <span style={{fontSize:22}}>{activeMod.icon}</span>
+          <div style={{fontFamily:"'Orbitron',monospace",fontSize:11,color:activeMod.color,letterSpacing:1}}>{activeMod.label}</div>
+        </div>
+        <div style={{marginBottom:16}}>
+          {activeMod.topics.map(t=>(
+            <span key={t} className={`ch${activeTopic===t?' a':''}`}
+              style={{"--c":activeMod.color,"--cb":activeMod.color+"1a"}}
+              onClick={()=>{setActiveTopic(t);setMobTab('canvas');}}>
+              {t}
+            </span>
+          ))}
+        </div>
+        {curParams.length>0&&<>
+          <div className="lbl" style={{marginTop:0}}>Parameters</div>
+          {curParams.map(p=>(
+            <div key={p.key} style={{marginBottom:16}}>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
+                <span style={{fontSize:11,color:"rgba(255,255,255,0.5)"}}>{p.label}</span>
+                <span style={{fontSize:11,color:activeMod.color}}>{params[p.key]}</span>
+              </div>
+              <input type="range" className="sl" style={{"--c":activeMod.color}}
+                min={p.min} max={p.max} step={p.step} value={params[p.key]||p.min}
+                onChange={e=>setParams(prev=>({...prev,[p.key]:parseFloat(e.target.value)}))}/>
+            </div>
+          ))}
+        </>}
+      </div>
+
+      {/* ── MOBILE THEORY OVERLAY ──────────────────────────── */}
+      <div className={`mob-overlay${mobTab==='theory'?' open':''}`}>
+        <div className="lbl" style={{marginTop:0}}>Theory — {activeMod.label}</div>
+        {Object.entries(activeMod.theory||{}).map(([k,v])=>(
+          <div key={k} style={{marginBottom:8}}>
+            <div onClick={()=>setTheory(theory===k?null:k)}
+              style={{cursor:"pointer",padding:"10px 12px",background:"rgba(255,255,255,0.03)",
+                border:"1px solid rgba(255,255,255,0.07)",borderRadius:3,
+                color:theory===k?activeMod.color:"rgba(255,255,255,0.6)",fontSize:12}}>
+              {theory===k?"▼":"▶"} {k}
+            </div>
+            {theory===k&&<div style={{padding:"10px 12px",background:"rgba(255,255,255,0.02)",
+              border:"1px solid rgba(255,255,255,0.05)",borderTop:"none",
+              fontSize:11,lineHeight:1.8,color:"rgba(255,255,255,0.55)"}}>
+              {v}
+            </div>}
+          </div>
+        ))}
       </div>
     </div>
   );
