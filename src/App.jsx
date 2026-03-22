@@ -1099,93 +1099,6 @@ function RegistrationPanel({color}){
         </div>
       </div>}
 
-      {/* ── MOBILE OVERLAYS ─────────────────────────────────────── */}
-      {/* Modules overlay */}
-      <div className={`mob-overlay${mobPanel==='modules'?' open':''}`}>
-        <div className="lbl" style={{marginTop:0,marginBottom:10}}>Select Module</div>
-        {MODULES.map(mod=>(
-          <button key={mod.id} className={`mb${activeMod.id===mod.id?' a':''}`}
-            style={{'--c':mod.color,width:'100%',marginBottom:4,borderRadius:3}}
-            onClick={()=>{selMod(mod);setMobPanel(null);}}>
-            <div style={{display:'flex',alignItems:'center',gap:10}}>
-              <span style={{fontSize:18}}>{mod.icon}</span>
-              <span style={{fontSize:12,color:activeMod.id===mod.id?mod.color:'rgba(255,255,255,0.6)'}}>{mod.label}</span>
-            </div>
-          </button>
-        ))}
-      </div>
-
-      {/* Operations overlay */}
-      <div className={`mob-overlay${mobPanel==='ops'?' open':''}`}>
-        <div className="lbl" style={{marginTop:0}}>
-          {activeMod.icon} {activeMod.label}
-        </div>
-        <div style={{marginBottom:16}}>
-          {activeMod.topics.map(t=>(
-            <span key={t} className={`ch${activeTopic===t?' a':''}`}
-              style={{'--c':activeMod.color,'--cb':activeMod.color+'1a',fontSize:13,padding:'8px 14px',margin:4,display:'inline-block'}}
-              onClick={()=>{setActiveTopic(t);setMobPanel(null);}}>
-              {t}
-            </span>
-          ))}
-        </div>
-        {curParams.length>0&&<>
-          <div className="lbl">Parameters</div>
-          {curParams.map(p=>(
-            <div key={p.key} style={{marginBottom:18}}>
-              <div style={{display:'flex',justifyContent:'space-between',marginBottom:6,fontSize:13}}>
-                <span style={{color:'rgba(255,255,255,0.5)'}}>{p.label}</span>
-                <span style={{color:activeMod.color,fontWeight:'bold'}}>{params[p.key]}</span>
-              </div>
-              <input type="range" className="sl" style={{'--c':activeMod.color}}
-                min={p.min} max={p.max} step={p.step} value={params[p.key]}
-                onChange={e=>setParams(prev=>({...prev,[p.key]:parseFloat(e.target.value)}))}/>
-            </div>
-          ))}
-        </>}
-      </div>
-
-      {/* Theory overlay */}
-      <div className={`mob-overlay${mobPanel==='theory'?' open':''}`}>
-        <div className="lbl" style={{marginTop:0}}>Theory — {activeTopic}</div>
-        {Object.entries(activeMod.theory||{}).map(([k,v])=>(
-          <div key={k} style={{marginBottom:6}}>
-            <div className="tr" style={{color:theory===k?activeMod.color:'rgba(255,255,255,0.5)',fontSize:13,padding:'6px 0'}}
-              onClick={()=>setTheory(theory===k?null:k)}>
-              <span style={{fontSize:11}}>{theory===k?'▼':'▶'}</span>
-              <span>{k}</span>
-            </div>
-            {theory===k&&<div className="tb fu" style={{fontSize:12,lineHeight:1.8}}>{v}</div>}
-          </div>
-        ))}
-      </div>
-
-      {/* ── MOBILE BOTTOM NAV ──────────────────────────────────────── */}
-      <nav className="mob-nav">
-        {[
-          {id:'modules', icon:'☰', label:'MODULES'},
-          {id:'ops',     icon:'⚙️', label:'OPS'},
-          {id:'theory',  icon:'📖', label:'THEORY'},
-          {id:'cam',     icon:'📷', label:'CAM'},
-        ].map(({id,icon,label})=>(
-          <button key={id}
-            className={`mob-nav-btn${mobPanel===id?' a':''}`}
-            style={{'--c': id==='cam'?(webcamOn?'#f72585':'#4cc9f0'):activeMod.color}}
-            onClick={()=>{
-              if(id==='cam'){toggleWebcam();setMobPanel(null);}
-              else setMobPanel(mobPanel===id?null:id);
-            }}>
-            <span className="ico">{id==='cam'&&webcamOn?'🔴':icon}</span>
-            <span>{id==='cam'&&webcamOn?'STOP':label}</span>
-          </button>
-        ))}
-        <button className="mob-nav-btn" style={{'--c':'#06d6a0'}}
-          onClick={exportImage}>
-          <span className="ico">💾</span>
-          <span>SAVE</span>
-        </button>
-      </nav>
-
       {/* ── MOBILE BOTTOM NAV ─────────────────────────────── */}
       <nav className="mob-nav" style={{"--mc":activeMod.color}}>
         {[
@@ -1321,7 +1234,6 @@ export default function App(){
   const [quizFeedback,setQuizFeedback]=useState(null);
   const [quizImgUrl,setQuizImgUrl]=useState(null);
   const [mobTab,setMobTab]=useState('canvas'); // 'modules'|'ops'|'canvas'|'theory'
-  const [mobPanel,setMobPanel]=useState(null); // null | 'modules' | 'ops' | 'theory'
   const origRef=useRef(null),procRef=useRef(null),fileRef=useRef(null),webcamRef=useRef(null),diffRef=useRef(null),streamRef=useRef(null),camFileRef=useRef(null),liveCanvasRef=useRef(null),animFrameRef=useRef(null);
 
   const isSpecialReg=activeMod.id==="registration"&&REG_SPECIAL.includes(activeTopic);
