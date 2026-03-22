@@ -1157,23 +1157,37 @@ export default function App(){
   const showRegPanel=isSpecialReg||isSpecialMatch;
 
   useEffect(()=>{
-    const c=document.createElement("canvas");c.width=320;c.height=320;
-    const ctx=c.getContext("2d");
-    const g=ctx.createRadialGradient(160,160,10,160,160,160);
-    g.addColorStop(0,"#ffffff");g.addColorStop(0.4,"#aaaaaa");g.addColorStop(1,"#222222");
-    ctx.fillStyle=g;ctx.fillRect(0,0,320,320);
-    ctx.fillStyle="#e63946";ctx.fillRect(40,40,90,90);
-    ctx.fillStyle="#4361ee";ctx.beginPath();ctx.arc(220,100,60,0,Math.PI*2);ctx.fill();
-    ctx.fillStyle="#06d6a0";ctx.beginPath();ctx.moveTo(160,210);ctx.lineTo(270,300);ctx.lineTo(50,300);ctx.closePath();ctx.fill();
-    ctx.fillStyle="#f77f00";ctx.fillRect(210,200,80,80);
-    for(let i=0;i<25;i++){ctx.fillStyle=`rgba(255,255,255,${Math.random()*0.8+0.2})`;ctx.beginPath();ctx.arc(Math.random()*320,Math.random()*320,Math.random()*3+1,0,Math.PI*2);ctx.fill();}
-    setOrigData(ctx.getImageData(0,0,320,320));
+    const generate=()=>{
+      const c=document.createElement("canvas");c.width=320;c.height=320;
+      const ctx=c.getContext("2d");
+      const g=ctx.createRadialGradient(160,160,10,160,160,160);
+      g.addColorStop(0,"#ffffff");g.addColorStop(0.4,"#aaaaaa");g.addColorStop(1,"#222222");
+      ctx.fillStyle=g;ctx.fillRect(0,0,320,320);
+      ctx.fillStyle="#e63946";ctx.fillRect(40,40,90,90);
+      ctx.fillStyle="#4361ee";ctx.beginPath();ctx.arc(220,100,60,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle="#06d6a0";ctx.beginPath();ctx.moveTo(160,210);ctx.lineTo(270,300);ctx.lineTo(50,300);ctx.closePath();ctx.fill();
+      ctx.fillStyle="#f77f00";ctx.fillRect(210,200,80,80);
+      for(let i=0;i<25;i++){ctx.fillStyle=`rgba(255,255,255,${Math.random()*0.8+0.2})`;ctx.beginPath();ctx.arc(Math.random()*320,Math.random()*320,Math.random()*3+1,0,Math.PI*2);ctx.fill();}
+      setOrigData(ctx.getImageData(0,0,320,320));
+    };
+    // Small delay ensures canvas refs are mounted before first draw
+    const t=setTimeout(generate, 50);
+    return ()=>clearTimeout(t);
   },[]);
 
   useEffect(()=>{
     if(!origData||!origRef.current) return;
     origRef.current.width=origData.width;origRef.current.height=origData.height;
     origRef.current.getContext("2d").putImageData(origData,0,0);
+  },[origData]);
+
+  // Redraw orig canvas if ref just became available
+  const origCanvasRef = useCallback((node)=>{
+    origRef.current = node;
+    if(node && origData){
+      node.width=origData.width; node.height=origData.height;
+      node.getContext("2d").putImageData(origData,0,0);
+    }
   },[origData]);
 
   useEffect(()=>{
@@ -1678,7 +1692,7 @@ export default function App(){
                 <div className="canvas-grid" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
                   <div>
                     <div className="lbl" style={{marginTop:0}}>Original</div>
-                    <div className="cw"><canvas ref={origRef}/></div>
+                    <div className="cw"><canvas ref={origCanvasRef}/></div>
                     <Histogram imageData={origData} label="Original"/>
                   </div>
                   <div>
