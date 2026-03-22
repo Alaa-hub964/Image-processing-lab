@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 
 // ----------------------------------------------------------
 // MODULES DEFINITION
