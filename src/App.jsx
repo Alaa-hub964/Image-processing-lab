@@ -1098,7 +1098,7 @@ function RegistrationPanel({color}){
           {diffData&&<Histogram imageData={diffData} label="Difference Histogram"/>}
         </div>
       </div>}
-
+    </div>
   );
 }
 
