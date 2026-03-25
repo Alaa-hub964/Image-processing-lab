@@ -1015,188 +1015,488 @@ class ErrorBoundary extends React.Component{
   }
 }
 
-function RegistrationPanel({color}){
+function RegistrationPanel({color, activeTopic}){
   const [img1,setImg1]=useState(null);
   const [img2,setImg2]=useState(null);
-  const [step,setStep]=useState("upload"); // upload | detect | match | align
-  const [matchLines,setMatchLines]=useState([]);
-  const [alignedData,setAlignedData]=useState(null);
-  const [diffData,setDiffData]=useState(null);
-  const [stats,setStats]=useState(null);
-  const canvas1=useRef(null),canvas2=useRef(null),matchCanvas=useRef(null),alignCanvas=useRef(null),diffCanvas=useRef(null);
-  const file1=useRef(null),file2=useRef(null);
+  const [busy,setBusy]=useState(false);
+  const [log,setLog]=useState("");
+  const [computed,setComputed]=useState(null); // stores all results after align
+  const c1=useRef(null),c2=useRef(null);
+  const cResult=useRef(null);
+  const cH1=useRef(null),cH2=useRef(null),cH3=useRef(null);
 
-  const loadImg=(file,setFn,canvasRef)=>{
-    const reader=new FileReader();
-    reader.onload=(e)=>{
+  // ── load image ─────────────────────────────────────────────────────────────
+  const loadImg=(file,setFn,ref)=>{
+    const r=new FileReader();
+    r.onload=e=>{
       const img=new Image();
       img.onload=()=>{
-        const maxD=280,scale=Math.min(1,maxD/Math.max(img.width,img.height));
-        const w=Math.round(img.width*scale),h=Math.round(img.height*scale);
-        const c=document.createElement("canvas");c.width=w;c.height=h;
-        c.getContext("2d").drawImage(img,0,0,w,h);
-        const id=c.getContext("2d").getImageData(0,0,w,h);
-        setFn(id);
-        if(canvasRef.current){canvasRef.current.width=w;canvasRef.current.height=h;canvasRef.current.getContext("2d").putImageData(id,0,0);}
+        const MAX=420,sc=Math.min(1,MAX/Math.max(img.width,img.height));
+        const W=Math.round(img.width*sc),H=Math.round(img.height*sc);
+        const cv=document.createElement("canvas");cv.width=W;cv.height=H;
+        cv.getContext("2d").drawImage(img,0,0,W,H);
+        const id=cv.getContext("2d").getImageData(0,0,W,H);
+        setFn({data:new Uint8ClampedArray(id.data),W,H,id});
+        if(ref.current){ref.current.width=W;ref.current.height=H;ref.current.getContext("2d").putImageData(id,0,0);}
       };img.src=e.target.result;
-    };reader.readAsDataURL(file);
+    };r.readAsDataURL(file);
   };
 
-  const runDetect=()=>{
-    if(!img1||!img2) return;
-    if(canvas1.current){canvas1.current.width=img1.width;canvas1.current.height=img1.height;canvas1.current.getContext("2d").putImageData(img1,0,0);}
-    if(canvas2.current){canvas2.current.width=img2.width;canvas2.current.height=img2.height;canvas2.current.getContext("2d").putImageData(img2,0,0);}
-    // Draw harris corners on canvases
-    const gray1=new Float32Array(img1.width*img1.height);for(let i=0;i<gray1.length;i++) gray1[i]=0.299*img1.data[i*4]+0.587*img1.data[i*4+1]+0.114*img1.data[i*4+2];
-    const gray2=new Float32Array(img2.width*img2.height);for(let i=0;i<gray2.length;i++) gray2[i]=0.299*img2.data[i*4]+0.587*img2.data[i*4+1]+0.114*img2.data[i*4+2];
-    const kps1=detectHarrisCorners(gray1,img1.width,img1.height,60);
-    const kps2=detectHarrisCorners(gray2,img2.width,img2.height,60);
-    const ctx1=canvas1.current?.getContext("2d"),ctx2=canvas2.current?.getContext("2d");
-    if(ctx1){kps1.forEach(({x,y})=>{ctx1.beginPath();ctx1.arc(x,y,3,0,Math.PI*2);ctx1.fillStyle="#f72585";ctx1.fill();ctx1.strokeStyle="white";ctx1.lineWidth=0.5;ctx1.stroke();});}
-    if(ctx2){kps2.forEach(({x,y})=>{ctx2.beginPath();ctx2.arc(x,y,3,0,Math.PI*2);ctx2.fillStyle="#06d6a0";ctx2.fill();ctx2.strokeStyle="white";ctx2.lineWidth=0.5;ctx2.stroke();});}
-    setStats({kps1:kps1.length,kps2:kps2.length});
-    setStep("detect");
+  // ── grayscale ──────────────────────────────────────────────────────────────
+  const toGray=(data,W,H)=>{
+    const g=new Float32Array(W*H);
+    for(let i=0;i<W*H;i++) g[i]=0.299*data[i*4]+0.587*data[i*4+1]+0.114*data[i*4+2];
+    return g;
   };
 
-  const runMatch=()=>{
-    if(!img1||!img2) return;
-    const gray1=new Float32Array(img1.width*img1.height);for(let i=0;i<gray1.length;i++) gray1[i]=0.299*img1.data[i*4]+0.587*img1.data[i*4+1]+0.114*img1.data[i*4+2];
-    const gray2=new Float32Array(img2.width*img2.height);for(let i=0;i<gray2.length;i++) gray2[i]=0.299*img2.data[i*4]+0.587*img2.data[i*4+1]+0.114*img2.data[i*4+2];
-    const kps1=detectHarrisCorners(gray1,img1.width,img1.height,50);
-    const kps2=detectHarrisCorners(gray2,img2.width,img2.height,50);
-    const d1=kps1.map(({x,y})=>patchDescriptor(gray1,img1.width,img1.height,x,y));
-    const d2=kps2.map(({x,y})=>patchDescriptor(gray2,img2.width,img2.height,x,y));
-    const matches=matchKeypoints(kps1,d1,kps2,d2);
-    setMatchLines(matches.map(({i,j})=>({x1:kps1[i].x,y1:kps1[i].y,x2:kps2[j].x,y2:kps2[j].y})));
-    setStats(s=>({...s,matches:matches.length,kps1:kps1.length,kps2:kps2.length}));
-    // Draw match canvas
+  // ── Harris corners ─────────────────────────────────────────────────────────
+  const harrisDet=(gray,W,H,nMax=500)=>{
+    const Ix=new Float32Array(W*H),Iy=new Float32Array(W*H);
+    for(let y=1;y<H-1;y++) for(let x=1;x<W-1;x++){
+      Ix[y*W+x]=(gray[y*W+x+1]-gray[y*W+x-1])*0.5;
+      Iy[y*W+x]=(gray[(y+1)*W+x]-gray[(y-1)*W+x])*0.5;
+    }
+    const R=new Float32Array(W*H);
+    for(let y=3;y<H-3;y++) for(let x=3;x<W-3;x++){
+      let a=0,b=0,c=0;
+      for(let dy=-2;dy<=2;dy++) for(let dx=-2;dx<=2;dx++){
+        const ix=Ix[(y+dy)*W+(x+dx)],iy=Iy[(y+dy)*W+(x+dx)];
+        a+=ix*ix; b+=iy*iy; c+=ix*iy;
+      }
+      R[y*W+x]=a*b-c*c-0.04*(a+b)*(a+b);
+    }
+    let maxR=0;
+    for(let i=0;i<W*H;i++) if(R[i]>maxR) maxR=R[i];
+    const thr=maxR*0.01;
+    const kps=[];
+    for(let y=4;y<H-4;y++) for(let x=4;x<W-4;x++){
+      if(R[y*W+x]<thr) continue;
+      let best=true;
+      for(let dy=-3;dy<=3&&best;dy++) for(let dx=-3;dx<=3;dx++){
+        if(!dx&&!dy) continue;
+        if(R[(y+dy)*W+(x+dx)]>=R[y*W+x]){best=false;break;}
+      }
+      if(best) kps.push({x,y,r:R[y*W+x]});
+    }
+    kps.sort((a,b)=>b.r-a.r);
+    return kps.slice(0,nMax);
+  };
+
+  // ── normalized 16x16 descriptor ────────────────────────────────────────────
+  const buildDesc=(gray,W,H,x,y)=>{
+    const sz=16,h=sz>>1,d=new Float32Array(sz*sz);
+    let mu=0;
+    for(let dy=0;dy<sz;dy++) for(let dx=0;dx<sz;dx++){
+      const px=Math.min(Math.max(x-h+dx,0),W-1),py=Math.min(Math.max(y-h+dy,0),H-1);
+      d[dy*sz+dx]=gray[py*W+px]; mu+=d[dy*sz+dx];
+    }
+    mu/=d.length;
+    let s=0; for(let i=0;i<d.length;i++){d[i]-=mu;s+=d[i]*d[i];}
+    s=Math.sqrt(s/d.length)||1; for(let i=0;i<d.length;i++) d[i]/=s;
+    return d;
+  };
+
+  // ── ratio-test SSD matching ────────────────────────────────────────────────
+  const matchKps=(kps1,ds1,kps2,ds2,ratio=0.82)=>{
+    const M=[];
+    for(let i=0;i<kps1.length;i++){
+      let d1=Infinity,d2=Infinity,bj=-1;
+      for(let j=0;j<kps2.length;j++){
+        let ssd=0; const a=ds1[i],b=ds2[j];
+        for(let k=0;k<a.length;k++){const v=a[k]-b[k];ssd+=v*v;}
+        if(ssd<d1){d2=d1;d1=ssd;bj=j;} else if(ssd<d2) d2=ssd;
+      }
+      if(d1<ratio*ratio*d2&&bj>=0) M.push({i,j:bj,d:d1});
+    }
+    M.sort((a,b)=>a.d-b.d);
+    return M;
+  };
+
+  // ── DLT 4-point homography ─────────────────────────────────────────────────
+  const dlt4=(p1,p2)=>{
+    const A=[];
+    for(let k=0;k<4;k++){
+      const[x,y]=p1[k],[u,v]=p2[k];
+      A.push([-x,-y,-1,0,0,0,u*x,u*y,u]);
+      A.push([0,0,0,-x,-y,-1,v*x,v*y,v]);
+    }
+    const M=A.map(r=>[...r]);
+    for(let c=0;c<8;c++){
+      let mx=0,mr=c;
+      for(let r=c;r<8;r++) if(Math.abs(M[r][c])>mx){mx=Math.abs(M[r][c]);mr=r;}
+      if(mx<1e-10) return null;
+      [M[c],M[mr]]=[M[mr],M[c]];
+      const dv=M[c][c]; for(let cc=c;cc<9;cc++) M[c][cc]/=dv;
+      for(let r=0;r<8;r++){if(r===c)continue;const f=M[r][c];for(let cc=c;cc<9;cc++) M[r][cc]-=f*M[c][cc];}
+    }
+    const h=M.map(r=>-r[8]); h.push(1); return h;
+  };
+
+  // ── apply homography ───────────────────────────────────────────────────────
+  const apH=(h,x,y)=>{const w=h[6]*x+h[7]*y+h[8]||1e-10;return[(h[0]*x+h[1]*y+h[2])/w,(h[3]*x+h[4]*y+h[5])/w];};
+
+  // ── RANSAC ─────────────────────────────────────────────────────────────────
+  const doRansac=(p1,p2,thr=6,its=1000)=>{
+    if(p1.length<4) return null;
+    let bH=null,bN=0,bMask=[];
+    const N=p1.length;
+    for(let it=0;it<its;it++){
+      const idx=[];
+      while(idx.length<4){const r=Math.floor(Math.random()*N);if(!idx.includes(r))idx.push(r);}
+      const H=dlt4(idx.map(i=>p1[i]),idx.map(i=>p2[i]));
+      if(!H) continue;
+      let n=0; const mask=new Array(N).fill(false);
+      for(let i=0;i<N;i++){
+        const[px,py]=apH(H,p1[i][0],p1[i][1]);
+        const dx=px-p2[i][0],dy=py-p2[i][1];
+        if(Math.sqrt(dx*dx+dy*dy)<thr){mask[i]=true;n++;}
+      }
+      if(n>bN){bN=n;bH=H;bMask=mask;}
+    }
+    return bH?{H:bH,mask:bMask,inliers:bN}:null;
+  };
+
+  // ── inverse warp with bilinear interp ──────────────────────────────────────
+  const warpImg=(srcData,sW,sH,H,dW,dH)=>{
+    const[h0,h1,h2,h3,h4,h5,h6,h7,h8]=H;
+    const det=h0*(h4*h8-h5*h7)-h1*(h3*h8-h5*h6)+h2*(h3*h7-h4*h6);
+    if(Math.abs(det)<1e-10) return new Uint8ClampedArray(dW*dH*4);
+    const inv=[(h4*h8-h5*h7)/det,(h2*h7-h1*h8)/det,(h1*h5-h2*h4)/det,
+               (h5*h6-h3*h8)/det,(h0*h8-h2*h6)/det,(h2*h3-h0*h5)/det,
+               (h3*h7-h4*h6)/det,(h1*h6-h0*h7)/det,(h0*h4-h1*h3)/det];
+    const out=new Uint8ClampedArray(dW*dH*4);
+    for(let y=0;y<dH;y++) for(let x=0;x<dW;x++){
+      const iw=inv[6]*x+inv[7]*y+inv[8]||1e-10;
+      const sx=(inv[0]*x+inv[1]*y+inv[2])/iw, sy=(inv[3]*x+inv[4]*y+inv[5])/iw;
+      if(sx<0||sx>=sW-1||sy<0||sy>=sH-1) continue;
+      const x0=Math.floor(sx),y0=Math.floor(sy),dx=sx-x0,dy=sy-y0;
+      const oi=(y*dW+x)*4;
+      for(let c=0;c<3;c++){
+        out[oi+c]=Math.round(
+          (1-dx)*(1-dy)*srcData[(y0*sW+x0)*4+c]+
+          dx*(1-dy)*srcData[(y0*sW+x0+1)*4+c]+
+          (1-dx)*dy*srcData[((y0+1)*sW+x0)*4+c]+
+          dx*dy*srcData[((y0+1)*sW+x0+1)*4+c]
+        );
+      }
+      out[oi+3]=255;
+    }
+    return out;
+  };
+
+  // ── draw RGB histogram ──────────────────────────────────────────────────────
+  const drawHist=(ref,data,W,H,title,validOnly=false)=>{
+    if(!ref.current) return;
+    const cv=ref.current,cw=280,ch=130;
+    cv.width=cw; cv.height=ch;
+    const ctx=cv.getContext("2d");
+    ctx.fillStyle="#06060e"; ctx.fillRect(0,0,cw,ch);
+    ctx.font="10px monospace"; ctx.fillStyle="rgba(255,255,255,0.3)";
+    ctx.fillText(title,6,13);
+    [["#ff4d6d",0],["#06d6a0",1],["#4cc9f0",2]].forEach(([col,ch2])=>{
+      const hist=new Array(256).fill(0);
+      for(let p=0;p<W*H;p++){
+        if(validOnly&&data[p*4+3]===0) continue;
+        hist[data[p*4+ch2]]++;
+      }
+      const mx=Math.max(...hist)||1;
+      ctx.beginPath(); ctx.strokeStyle=col; ctx.lineWidth=1.3; ctx.globalAlpha=0.9;
+      for(let x=0;x<256;x++){
+        const bx=5+x*(cw-10)/256, by=ch-10-hist[x]/mx*(ch-25);
+        x===0?ctx.moveTo(bx,by):ctx.lineTo(bx,by);
+      }
+      ctx.stroke(); ctx.globalAlpha=1;
+    });
+    ctx.strokeStyle="rgba(255,255,255,0.07)";
+    ctx.beginPath(); ctx.moveTo(5,ch-10); ctx.lineTo(cw-5,ch-10); ctx.stroke();
+  };
+
+  // ── MAIN COMPUTE (runs all steps at once) ───────────────────────────────────
+  const runAll=()=>{
+    if(!img1||!img2){alert("Please upload both images first.");return;}
+    setBusy(true); setLog("Computing...");
     setTimeout(()=>{
-      const mc=matchCanvas.current;if(!mc) return;
-      const W1=img1.width,H1=img1.height,W2=img2.width,H2=img2.height;
-      mc.width=W1+W2+10;mc.height=Math.max(H1,H2);
-      const ctx=mc.getContext("2d");
-      ctx.fillStyle="#06060e";ctx.fillRect(0,0,mc.width,mc.height);
-      ctx.putImageData(img1,0,(mc.height-H1)/2);
-      ctx.putImageData(img2,W1+10,(mc.height-H2)/2);
-      // Draw match lines
-      matches.slice(0,30).forEach(({i,j},idx)=>{
-        const hue=(idx/30)*300;
-        ctx.beginPath();ctx.moveTo(kps1[i].x,(mc.height-H1)/2+kps1[i].y);ctx.lineTo(W1+10+kps2[j].x,(mc.height-H2)/2+kps2[j].y);
-        ctx.strokeStyle=`hsl(${hue},90%,60%)`;ctx.lineWidth=0.8;ctx.globalAlpha=0.7;ctx.stroke();ctx.globalAlpha=1;
-        ctx.beginPath();ctx.arc(kps1[i].x,(mc.height-H1)/2+kps1[i].y,3,0,Math.PI*2);ctx.fillStyle=`hsl(${hue},90%,60%)`;ctx.fill();
-        ctx.beginPath();ctx.arc(W1+10+kps2[j].x,(mc.height-H2)/2+kps2[j].y,3,0,Math.PI*2);ctx.fillStyle=`hsl(${hue},90%,60%)`;ctx.fill();
-      });
+      try{
+        const g1=toGray(img1.data,img1.W,img1.H);
+        const g2=toGray(img2.data,img2.W,img2.H);
+        // 1. Detect
+        const kps1=harrisDet(g1,img1.W,img1.H,400);
+        const kps2=harrisDet(g2,img2.W,img2.H,400);
+        // 2. Describe & match
+        const ds1=kps1.map(({x,y})=>buildDesc(g1,img1.W,img1.H,x,y));
+        const ds2=kps2.map(({x,y})=>buildDesc(g2,img2.W,img2.H,x,y));
+        const matches=matchKps(kps1,ds1,kps2,ds2,0.82);
+        // 3. RANSAC
+        const p1=matches.map(({i})=>[kps1[i].x,kps1[i].y]);
+        const p2=matches.map(({j})=>[kps2[j].x,kps2[j].y]);
+        const res=matches.length>=4?doRansac(p1,p2,6,1000):null;
+        // 4. Warp
+        let warpedData=null,ovData=null,dfData=null;
+        const dW=img2.W,dH=img2.H;
+        if(res){
+          warpedData=warpImg(img1.data,img1.W,img1.H,res.H,dW,dH);
+          // Overlay
+          ovData=new Uint8ClampedArray(dW*dH*4);
+          for(let p=0;p<dW*dH;p++){
+            const oi=p*4;
+            if(warpedData[oi+3]>0){
+              ovData[oi]  =Math.round(warpedData[oi]  *0.5+img2.data[oi]  *0.5);
+              ovData[oi+1]=Math.round(warpedData[oi+1]*0.5+img2.data[oi+1]*0.5);
+              ovData[oi+2]=Math.round(warpedData[oi+2]*0.5+img2.data[oi+2]*0.5);
+              ovData[oi+3]=255;
+            } else {
+              ovData[oi]=img2.data[oi]; ovData[oi+1]=img2.data[oi+1];
+              ovData[oi+2]=img2.data[oi+2]; ovData[oi+3]=255;
+            }
+          }
+          // Diff
+          dfData=new Uint8ClampedArray(dW*dH*4);
+          for(let p=0;p<dW*dH;p++){
+            const oi=p*4;
+            if(warpedData[oi+3]>0){
+              const dr=Math.abs(warpedData[oi]-img2.data[oi]);
+              const dg=Math.abs(warpedData[oi+1]-img2.data[oi+1]);
+              const db=Math.abs(warpedData[oi+2]-img2.data[oi+2]);
+              const v=Math.round((dr+dg+db)/3);
+              dfData[oi]=v; dfData[oi+1]=Math.round(v*0.4); dfData[oi+2]=255-v;
+            } else {
+              dfData[oi]=img2.data[oi]; dfData[oi+1]=img2.data[oi+1]; dfData[oi+2]=img2.data[oi+2];
+            }
+            dfData[oi+3]=255;
+          }
+        }
+        // PSNR
+        let psnrVal="—";
+        if(warpedData){
+          let mse=0,pc=0;
+          for(let p=0;p<dW*dH;p++){if(warpedData[p*4+3]===0)continue;for(let c=0;c<3;c++){const d=warpedData[p*4+c]-img2.data[p*4+c];mse+=d*d;}pc++;}
+          psnrVal=pc>0&&mse>0?Math.round(10*Math.log10(255*255/(mse/(pc*3)))*10)/10:99;
+        }
+        // Shift
+        let shX="—",shY="—";
+        if(res){
+          let sx=0,sy=0,cnt=0;
+          matches.forEach(({i,j},idx)=>{if(res.mask[idx]){sx+=p2[idx][0]-p1[idx][0];sy+=p2[idx][1]-p1[idx][1];cnt++;}});
+          if(cnt){shX=Math.round(sx/cnt*10)/10;shY=Math.round(sy/cnt*10)/10;}
+        }
+        setComputed({kps1,kps2,matches,res,warpedData,ovData,dfData,dW,dH,psnrVal,shX,shY});
+        setLog(`✓ KP: ${kps1.length}+${kps2.length}  Matches: ${matches.length}  Inliers: ${res?res.inliers:"—"}  PSNR: ${psnrVal} dB`);
+      }catch(e){setLog("Error: "+e.message);}
+      setBusy(false);
     },50);
-    setStep("match");
   };
 
-  const runAlign=()=>{
-    if(!img1||!img2) return;
-    const gray1=new Float32Array(img1.width*img1.height);for(let i=0;i<gray1.length;i++) gray1[i]=0.299*img1.data[i*4]+0.587*img1.data[i*4+1]+0.114*img1.data[i*4+2];
-    const gray2=new Float32Array(img2.width*img2.height);for(let i=0;i<gray2.length;i++) gray2[i]=0.299*img2.data[i*4]+0.587*img2.data[i*4+1]+0.114*img2.data[i*4+2];
-    const kps1=detectHarrisCorners(gray1,img1.width,img1.height,50);
-    const kps2=detectHarrisCorners(gray2,img2.width,img2.height,50);
-    const d1=kps1.map(({x,y})=>patchDescriptor(gray1,img1.width,img1.height,x,y));
-    const d2=kps2.map(({x,y})=>patchDescriptor(gray2,img2.width,img2.height,x,y));
-    const matches=matchKeypoints(kps1,d1,kps2,d2);
-    const src=matches.map(({i})=>[kps1[i].x,kps1[i].y]);
-    const dst=matches.map(({j})=>[kps2[j].x,kps2[j].y]);
-    const H_mat=computeHomography(src,dst)||[[1,0,0],[0,1,0],[0,0,1]];
-    const warped=warpImage({data:img2.data,width:img2.width,height:img2.height},H_mat,img1.width,img1.height);
-    // Overlay: 60% img1 + 40% warped
-    const overlay=new Uint8ClampedArray(img1.width*img1.height*4);
-    for(let i=0;i<img1.width*img1.height;i++){
-      overlay[i*4]=Math.round(img1.data[i*4]*0.5+warped[i*4]*0.5);
-      overlay[i*4+1]=Math.round(img1.data[i*4+1]*0.5+warped[i*4+1]*0.5);
-      overlay[i*4+2]=Math.round(img1.data[i*4+2]*0.5+warped[i*4+2]*0.5);
-      overlay[i*4+3]=255;
-    }
-    const alignId=new ImageData(overlay,img1.width,img1.height);
-    setAlignedData(alignId);
-    // Diff map
-    const diff=new Uint8ClampedArray(img1.width*img1.height*4);
-    for(let i=0;i<img1.width*img1.height;i++){
-      const d=Math.abs(img1.data[i*4]-warped[i*4]);
-      diff[i*4]=Math.min(255,d*3);diff[i*4+1]=Math.round(255-d*2);diff[i*4+2]=0;diff[i*4+3]=255;
-    }
-    const diffId=new ImageData(diff,img1.width,img1.height);
-    setDiffData(diffId);
-    let mse=0;for(let i=0;i<img1.width*img1.height;i++){mse+=((img1.data[i*4]-warped[i*4])*(img1.data[i*4]-warped[i*4]));}mse/=img1.width*img1.height;
-    const psnr=10*Math.log10((255*255)/(mse||1));
-    setStats(s=>({...s,matches:matches.length,tx:H_mat[0][2].toFixed(1),ty:H_mat[1][2].toFixed(1),psnr:psnr.toFixed(1)}));
-    setTimeout(()=>{
-      if(alignCanvas.current){alignCanvas.current.width=img1.width;alignCanvas.current.height=img1.height;alignCanvas.current.getContext("2d").putImageData(alignId,0,0);}
-      if(diffCanvas.current){diffCanvas.current.width=img1.width;diffCanvas.current.height=img1.height;diffCanvas.current.getContext("2d").putImageData(diffId,0,0);}
-    },30);
-    setStep("align");
+  const doReset=()=>{
+    setImg1(null);setImg2(null);setComputed(null);setLog("");
+    [c1,c2,cResult,cH1,cH2,cH3].forEach(r=>{if(r.current){r.current.width=2;r.current.height=2;}});
   };
 
-  const btnStyle=(active)=>({background:active?color+"22":"rgba(255,255,255,0.04)",border:`1px solid ${active?color:"rgba(255,255,255,0.1)"}`,color:active?color:"rgba(255,255,255,0.5)",padding:"7px 14px",borderRadius:2,cursor:"pointer",fontSize:11,letterSpacing:1,fontFamily:"'Share Tech Mono',monospace",transition:"all 0.15s"});
+  // ── Render result canvas based on activeTopic ──────────────────────────────
+  useEffect(()=>{
+    if(!computed) return;
+    const{kps1,kps2,matches,res,warpedData,ovData,dfData,dW,dH}=computed;
+    const t=activeTopic;
+
+    if(t==="Feature Detection"){
+      // Show both images side by side with keypoints
+      if(!c1.current||!c2.current) return;
+      c1.current.width=img1.W; c1.current.height=img1.H;
+      c2.current.width=img2.W; c2.current.height=img2.H;
+      const ctx1=c1.current.getContext("2d");
+      const ctx2=c2.current.getContext("2d");
+      ctx1.putImageData(img1.id,0,0);
+      ctx2.putImageData(img2.id,0,0);
+      // Draw keypoints
+      ctx1.fillStyle="#ff4d6d";
+      kps1.forEach(({x,y})=>{ctx1.beginPath();ctx1.arc(x,y,2.5,0,Math.PI*2);ctx1.fill();});
+      ctx2.fillStyle="#06d6a0";
+      kps2.forEach(({x,y})=>{ctx2.beginPath();ctx2.arc(x,y,2.5,0,Math.PI*2);ctx2.fill();});
+    }
+
+    if(t==="Keypoint Matching"||t==="Upload & Match"){
+      // Side by side with match lines (like Python screenshot)
+      if(!cResult.current) return;
+      const GAP=6,CW=img1.W+img2.W+GAP,CH=Math.max(img1.H,img2.H);
+      cResult.current.width=CW; cResult.current.height=CH;
+      const ctx=cResult.current.getContext("2d");
+      ctx.fillStyle="#06060e"; ctx.fillRect(0,0,CW,CH);
+      ctx.putImageData(img1.id,0,(CH-img1.H)/2);
+      ctx.putImageData(img2.id,img1.W+GAP,(CH-img2.H)/2);
+      const show=matches.slice(0,80);
+      show.forEach(({i,j},idx)=>{
+        const t2=idx/Math.max(show.length-1,1);
+        const r=Math.round(50*(1-t2)+0*t2),g=Math.round(200*t2+180*(1-t2)),b=Math.round(80*(1-t2)+80*t2);
+        ctx.strokeStyle=`rgba(${r},${g},${b},0.85)`;
+        ctx.lineWidth=1.2;
+        ctx.beginPath();
+        ctx.moveTo(kps1[i].x,(CH-img1.H)/2+kps1[i].y);
+        ctx.lineTo(img1.W+GAP+kps2[j].x,(CH-img2.H)/2+kps2[j].y);
+        ctx.stroke();
+      });
+      ctx.fillStyle="#00ffaa";
+      show.forEach(({i})=>{ctx.beginPath();ctx.arc(kps1[i].x,(CH-img1.H)/2+kps1[i].y,3,0,Math.PI*2);ctx.fill();});
+      show.forEach(({j})=>{ctx.beginPath();ctx.arc(img1.W+GAP+kps2[j].x,(CH-img2.H)/2+kps2[j].y,3,0,Math.PI*2);ctx.fill();});
+    }
+
+    if(t==="Homography"){
+      // 3-panel: source | target | overlay + histograms below
+      if(!cResult.current) return;
+      const W1=img1.W,H1=img1.H,W2=img2.W,H2=img2.H;
+      const panelW=Math.max(W1,W2,Math.round((W1+W2)/2));
+      const panelH=Math.max(H1,H2);
+      const CW=W1+W2+(ovData?W2:0)+12,CH=panelH;
+      cResult.current.width=CW; cResult.current.height=CH;
+      const ctx=cResult.current.getContext("2d");
+      ctx.fillStyle="#06060e"; ctx.fillRect(0,0,CW,CH);
+      // Panel 1: source
+      ctx.putImageData(img1.id,0,(CH-H1)/2);
+      ctx.fillStyle="rgba(255,255,255,0.4)"; ctx.font="11px monospace";
+      ctx.fillText("Reference",4,14);
+      // Panel 2: target
+      ctx.putImageData(img2.id,W1+6,(CH-H2)/2);
+      ctx.fillText("Moving",W1+10,14);
+      // Panel 3: overlay
+      if(ovData){
+        const ovId=new ImageData(ovData,W2,H2);
+        ctx.putImageData(ovId,W1+W2+12,(CH-H2)/2);
+        ctx.fillText("Registered Overlay",W1+W2+16,14);
+      }
+      // Draw histograms
+      setTimeout(()=>{
+        drawHist(cH1,img1.data,W1,H1,"Reference");
+        drawHist(cH2,img2.data,W2,H2,"Moving");
+        if(warpedData) drawHist(cH3,warpedData,W2,H2,"Registered (valid px)",true);
+      },80);
+    }
+
+    if(t==="Aligned Overlay"){
+      // Show the warped image (black background) — exactly like registered_image.png
+      if(!cResult.current||!warpedData) return;
+      cResult.current.width=dW; cResult.current.height=dH;
+      const ctx=cResult.current.getContext("2d");
+      ctx.fillStyle="#000000"; ctx.fillRect(0,0,dW,dH);
+      ctx.putImageData(new ImageData(warpedData,dW,dH),0,0);
+    }
+
+    if(t==="Difference Map"){
+      // Show difference map
+      if(!cResult.current||!dfData) return;
+      cResult.current.width=dW; cResult.current.height=dH;
+      cResult.current.getContext("2d").putImageData(new ImageData(dfData,dW,dH),0,0);
+    }
+
+  },[computed,activeTopic]);
+
+  // ── styles ─────────────────────────────────────────────────────────────────
+  const LBL={fontSize:9,letterSpacing:3,color:"rgba(255,255,255,0.2)",textTransform:"uppercase",marginBottom:5};
+  const BOX={background:"#06060e",border:"1px solid rgba(255,255,255,0.07)",borderRadius:4,overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",minHeight:110};
+  const Stat=({l,v,c="#4cc9f0"})=>(
+    <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:3,padding:"6px 10px",textAlign:"center",minWidth:75}}>
+      <div style={{fontSize:8,letterSpacing:2,color:"rgba(255,255,255,0.25)",marginBottom:2}}>{l}</div>
+      <div style={{fontSize:13,fontWeight:"bold",color:c}}>{v}</div>
+    </div>
+  );
 
   return(
-    <div style={{padding:"12px 0"}}>
-      {/* Upload row */}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
-        {[{ref:file1,label:"Reference Image",setFn:setImg1,canvasRef:canvas1,loaded:!!img1,color:"#f72585"},
-          {ref:file2,label:"Moving Image",setFn:setImg2,canvasRef:canvas2,loaded:!!img2,color:"#06d6a0"}].map((it,idx)=>(
-          <div key={idx}>
-            <div style={{fontSize:9,letterSpacing:3,color:it.color,marginBottom:6}}>{it.label.toUpperCase()}</div>
-            <div style={{background:"#06060e",border:`1px solid ${it.loaded?it.color:"rgba(255,255,255,0.06)"}`,borderRadius:4,overflow:"hidden",minHeight:120,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",transition:"border 0.2s"}}
-              onClick={()=>it.ref.current?.click()}>
-              <canvas ref={it.canvasRef} style={{maxWidth:"100%",maxHeight:200,display:it.loaded?"block":"none"}}/>
-              {!it.loaded&&<div style={{fontSize:11,color:"rgba(255,255,255,0.2)",letterSpacing:2}}>+ CLICK TO UPLOAD</div>}
+    <div style={{padding:14,overflowY:"auto",flex:1,display:"flex",flexDirection:"column",gap:10}}>
+
+      {/* Buttons */}
+      <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+        <button onClick={runAll} disabled={busy} style={{background:computed?"rgba(6,214,160,0.15)":"rgba(255,255,255,0.03)",border:`1px solid ${computed?color:"rgba(255,255,255,0.2)"}`,color:computed?color:"rgba(255,255,255,0.5)",padding:"8px 16px",cursor:"pointer",borderRadius:3,fontFamily:"monospace",fontSize:11,letterSpacing:1}}>
+          {busy?"⏳ Computing...":"⚡ Run Registration"}
+        </button>
+        <button onClick={doReset} style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.35)",padding:"8px 14px",cursor:"pointer",borderRadius:3,fontFamily:"monospace",fontSize:11}}>↺ Reset</button>
+      </div>
+      {log&&<div style={{fontSize:10,color:computed?"#06d6a0":"#f77f00",background:computed?"rgba(6,214,160,0.06)":"rgba(247,127,0,0.06)",border:`1px solid ${computed?"rgba(6,214,160,0.2)":"rgba(247,127,0,0.2)"}`,borderRadius:3,padding:"5px 10px"}}>{log}</div>}
+
+      {/* Upload panels */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+        {[
+          {label:"REFERENCE IMAGE",ref:c1,img:img1,set:setImg1,cl:color},
+          {label:"MOVING IMAGE",   ref:c2,img:img2,set:setImg2,cl:"#4cc9f0"},
+        ].map(({label,ref,img,set,cl})=>(
+          <div key={label}>
+            <div style={LBL}>{label}</div>
+            <div style={{...BOX,border:`1px solid ${cl}33`,minHeight:150}}>
+              <canvas ref={ref} style={{maxWidth:"100%",maxHeight:190,display:"block"}}/>
             </div>
-            <input ref={it.ref} type="file" accept="image/*" style={{display:"none"}} onChange={e=>{const f=e.target.files?.[0];if(f) it.setFn(null)||loadImg(f,it.setFn,it.canvasRef);e.target.value="";}}/>
+            <label style={{display:"block",marginTop:5,textAlign:"center",background:`${cl}0f`,border:`1px solid ${cl}44`,color:cl,padding:"6px",cursor:"pointer",borderRadius:3,fontFamily:"monospace",fontSize:10,letterSpacing:1}}>
+              ⬆ {img?"Change Image":"Upload Image"}
+              <input type="file" accept="image/*" style={{display:"none"}} onChange={e=>e.target.files[0]&&loadImg(e.target.files[0],set,ref)}/>
+            </label>
           </div>
         ))}
-      </div>
-
-      {/* Step buttons */}
-      <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
-        <button style={btnStyle(true)} onClick={runDetect} disabled={!img1||!img2}>🔍 Detect Features</button>
-        <button style={btnStyle(step==="match"||step==="align")} onClick={runMatch} disabled={!img1||!img2}>🔗 Match Keypoints</button>
-        <button style={btnStyle(step==="align")} onClick={runAlign} disabled={!img1||!img2}>🎯 Align & Register</button>
-        <button style={{...btnStyle(false),color:"rgba(255,255,255,0.3)"}} onClick={()=>{setImg1(null);setImg2(null);setStep("upload");setMatchLines([]);setAlignedData(null);setDiffData(null);setStats(null);}}>Reset Reset</button>
       </div>
 
       {/* Stats */}
-      {stats&&<div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
-        {[["Keypoints A",stats.kps1,"#f72585"],["Keypoints B",stats.kps2,"#06d6a0"],stats.matches&&["Matches",stats.matches,"#4cc9f0"],stats.tx&&["Shift X",stats.tx+"px","#f77f00"],stats.ty&&["Shift Y",stats.ty+"px","#f77f00"],stats.psnr&&["PSNR",stats.psnr+" dB","#7209b7"]].filter(Boolean).map(([l,v,c])=>(
-          <div key={l} style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:3,padding:"6px 12px"}}>
-            <div style={{fontSize:9,letterSpacing:2,color:"rgba(255,255,255,0.25)"}}>{l}</div>
-            <div style={{fontSize:14,color:c,fontWeight:"bold"}}>{v}</div>
-          </div>
-        ))}
+      {computed&&<div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
+        <Stat l="KP A"    v={computed.kps1.length} c="#f72585"/>
+        <Stat l="KP B"    v={computed.kps2.length} c="#06d6a0"/>
+        <Stat l="MATCHES" v={computed.matches.length} c="#4361ee"/>
+        <Stat l="INLIERS" v={computed.res?computed.res.inliers:"—"} c="#f77f00"/>
+        <Stat l="SHIFT X" v={computed.shX!=="—"?computed.shX+"px":"—"} c="#4cc9f0"/>
+        <Stat l="SHIFT Y" v={computed.shY!=="—"?computed.shY+"px":"—"} c="#4cc9f0"/>
+        <Stat l="PSNR"    v={computed.psnrVal!=="—"?computed.psnrVal+" dB":"—"} c={computed.psnrVal>25?"#06d6a0":computed.psnrVal>15?"#f77f00":"#f72585"}/>
       </div>}
 
-      {/* Match visualization */}
-      {step==="match"&&<div style={{marginBottom:12}}>
-        <div style={{fontSize:9,letterSpacing:3,color:"rgba(255,255,255,0.3)",marginBottom:6}}>KEYPOINT MATCHES (top 30 shown)</div>
-        <div style={{background:"#06060e",border:"1px solid rgba(255,255,255,0.06)",borderRadius:4,overflow:"auto"}}>
-          <canvas ref={matchCanvas} style={{maxWidth:"100%",display:"block"}}/>
+      {/* ── Topic-specific result display ── */}
+      {computed&&(activeTopic==="Feature Detection")&&<>
+        <div style={LBL}>FEATURE DETECTION — {computed.kps1.length} + {computed.kps2.length} KEYPOINTS</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+          <div>
+            <div style={{...LBL,color:"#f72585"}}>Reference — {computed.kps1.length} KP</div>
+            <div style={BOX}><canvas ref={c1} style={{maxWidth:"100%",maxHeight:220,display:"block"}}/></div>
+          </div>
+          <div>
+            <div style={{...LBL,color:"#06d6a0"}}>Moving — {computed.kps2.length} KP</div>
+            <div style={BOX}><canvas ref={c2} style={{maxWidth:"100%",maxHeight:220,display:"block"}}/></div>
+          </div>
         </div>
-      </div>}
+      </>}
 
-      {/* Aligned + diff */}
-      {step==="align"&&<div className="canvas-grid" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-        <div>
-          <div style={{fontSize:9,letterSpacing:3,color:color,marginBottom:6}}>REGISTERED OVERLAY</div>
-          <div style={{background:"#06060e",border:`1px solid ${color}44`,borderRadius:4,overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",minHeight:120}}>
-            <canvas ref={alignCanvas} style={{maxWidth:"100%",maxHeight:250,display:"block"}}/>
-          </div>
-          {alignedData&&<Histogram imageData={alignedData} label="Registered Histogram"/>}
+      {computed&&(activeTopic==="Keypoint Matching"||activeTopic==="Upload & Match")&&<>
+        <div style={LBL}>KEYPOINT MATCHES — {computed.matches.length} GOOD MATCHES  |  INLIERS: {computed.res?computed.res.inliers:"—"}/{computed.matches.length}</div>
+        <div style={BOX}><canvas ref={cResult} style={{maxWidth:"100%",display:"block"}}/></div>
+      </>}
+
+      {computed&&activeTopic==="Homography"&&<>
+        <div style={LBL}>REGISTRATION RESULT — SOURCE | TARGET | OVERLAY</div>
+        <div style={BOX}><canvas ref={cResult} style={{maxWidth:"100%",display:"block"}}/></div>
+        <div style={LBL}>RGB HISTOGRAM COMPARISON</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+          <div style={BOX}><canvas ref={cH1} style={{maxWidth:"100%",display:"block"}}/></div>
+          <div style={BOX}><canvas ref={cH2} style={{maxWidth:"100%",display:"block"}}/></div>
+          <div style={BOX}><canvas ref={cH3} style={{maxWidth:"100%",display:"block"}}/></div>
         </div>
-        <div>
-          <div style={{fontSize:9,letterSpacing:3,color:"#f72585",marginBottom:6}}>DIFFERENCE MAP</div>
-          <div style={{background:"#06060e",border:"1px solid rgba(247,37,133,0.3)",borderRadius:4,overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",minHeight:120}}>
-            <canvas ref={diffCanvas} style={{maxWidth:"100%",maxHeight:250,display:"block"}}/>
-          </div>
-          {diffData&&<Histogram imageData={diffData} label="Difference Histogram"/>}
-        </div>
+      </>}
+
+      {computed&&activeTopic==="Aligned Overlay"&&<>
+        <div style={LBL}>REGISTERED IMAGE (WARPED REFERENCE → MOVING SPACE)</div>
+        <div style={BOX}><canvas ref={cResult} style={{maxWidth:"100%",maxHeight:380,display:"block"}}/></div>
+      </>}
+
+      {computed&&activeTopic==="Difference Map"&&<>
+        <div style={LBL}>DIFFERENCE MAP  |  BLUE = SIMILAR  |  RED = DIFFERENT</div>
+        <div style={BOX}><canvas ref={cResult} style={{maxWidth:"100%",maxHeight:380,display:"block"}}/></div>
+      </>}
+
+      {/* Instructions */}
+      {!computed&&<div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.05)",borderRadius:4,padding:14,fontSize:11,color:"rgba(255,255,255,0.35)",lineHeight:2.2}}>
+        <div style={{fontSize:10,letterSpacing:2,color,marginBottom:8}}>HOW TO USE</div>
+        1. Upload <span style={{color:"#f72585"}}>Reference Image</span> (source to register)<br/>
+        2. Upload <span style={{color:"#4cc9f0"}}>Moving Image</span> (target scene)<br/>
+        3. Click <span style={{color:"#06d6a0"}}>Run Registration</span> — computes everything once<br/>
+        4. Switch between operations in the left panel to see each result:<br/>
+        &nbsp;&nbsp;• <span style={{color:color}}>Feature Detection</span> → keypoints on both images<br/>
+        &nbsp;&nbsp;• <span style={{color:color}}>Keypoint Matching</span> → match lines between images<br/>
+        &nbsp;&nbsp;• <span style={{color:color}}>Homography</span> → 3-panel result + RGB histograms<br/>
+        &nbsp;&nbsp;• <span style={{color:color}}>Aligned Overlay</span> → warped reference image<br/>
+        &nbsp;&nbsp;• <span style={{color:color}}>Difference Map</span> → pixel difference visualization
       </div>}
     </div>
   );
 }
+
 
 // ----------------------------------------------------------
 // MAIN APP
@@ -1762,7 +2062,1275 @@ export default function App(){
 
             {showRegPanel ? (
               <ErrorBoundary key={activeMod.id+activeTopic}>
-                <RegistrationPanel color={activeMod.color}/>
+                <RegistrationPanel color={activeMod.color} activeTopic={activeTopic}/>
+              </ErrorBoundary>
+            ) : (
+              <>
+                <div style={{display:webcamOn?"block":"none",marginBottom:12,background:"#06060e",border:"1px solid rgba(247,37,133,0.3)",borderRadius:4,padding:10}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,flexWrap:"wrap",gap:6}}>
+                    <div className="lbl" style={{marginTop:0,color:"#f72585"}}>📷 LIVE WEBCAM</div>
+                    {webcamErr&&<div style={{fontSize:10,color:"#f72585"}}>{webcamErr}</div>}
+                    <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                      {[['sobel','⬜ SOBEL'],['color','🌈 NEON'],['capture','🎨 COLOR']].map(([m,label])=>(
+                        <button key={m} onClick={()=>setLiveMode(m)} style={{fontSize:10,padding:"4px 9px",borderRadius:2,cursor:"pointer",fontFamily:"monospace",border:`1px solid ${liveMode===m?"#f72585":"rgba(255,255,255,0.15)"}`,background:liveMode===m?"rgba(247,37,133,0.15)":"transparent",color:liveMode===m?"#f72585":"rgba(255,255,255,0.5)",transition:"all 0.15s"}}>{label}</button>
+                      ))}
+                      <button className="ub" style={{fontSize:10,padding:"4px 10px",borderColor:"rgba(6,214,160,0.4)",color:"#06d6a0"}} onClick={captureWebcam}>⚡ CAPTURE</button>
+                    </div>
+                  </div>
+                  {/* Hidden video — needed for stream, hidden behind live canvas */}
+                  <video ref={webcamRef} autoPlay playsInline muted style={{display:"none"}}/>
+                  <div style={{display:"flex",justifyContent:"center",background:"#000",borderRadius:3,overflow:"hidden",position:"relative"}}>
+                    <canvas ref={liveCanvasRef} style={{maxWidth:"100%",maxHeight:240,display:"block"}}/>
+                    <div style={{position:"absolute",top:6,left:8,fontSize:9,letterSpacing:2,color:"rgba(255,255,255,0.4)",pointerEvents:"none"}}>
+                      {liveMode==='sobel'?"LIVE SOBEL EDGE":liveMode==='color'?"LIVE NEON EDGE":"LIVE COLOR FEED"}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="canvas-grid" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                  <div>
+                    <div className="lbl" style={{marginTop:0}}>Original</div>
+                    <div className="cw"><canvas ref={origCanvasRef}/></div>
+                    <Histogram imageData={origData} label="Original"/>
+                  </div>
+                  <div>
+                    <div className="lbl" style={{marginTop:0,color:activeMod.color}}>{activeTopic}</div>
+                    <div className="cw"><canvas ref={procRef}/></div>
+                    <Histogram imageData={procData} label="Processed"/>
+                  </div>
+                </div>
+
+                {diffMode&&<div style={{marginTop:8}}>
+                  <div className="lbl" style={{color:"#f77f00"}}>🔀 DIFFERENCE MAP (|Original - Processed|)</div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,alignItems:"start"}}>
+                    <div style={{background:"#06060e",border:"1px solid rgba(247,127,0,0.3)",borderRadius:4,overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",minHeight:100}}>
+                      <canvas ref={diffRef} style={{maxWidth:"100%",maxHeight:260,display:"block"}}/>
+                    </div>
+                    <div style={{fontSize:11,color:"rgba(255,255,255,0.5)",lineHeight:1.8,padding:12,background:"rgba(247,127,0,0.04)",border:"1px solid rgba(247,127,0,0.15)",borderRadius:4}}>
+                      <div style={{color:"#f77f00",marginBottom:6,fontSize:10,letterSpacing:2}}>DIFF ANALYSIS</div>
+                      Bright pixels indicate large differences between original and processed image. Dark areas are unchanged regions. Useful for:<br/>
+                      • Visualizing filter effects<br/>
+                      • Quality assessment<br/>
+                      • Noise pattern analysis
+                    </div>
+                  </div>
+                </div>}
+
+                <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}} className="mob-info-grid">
+                  {[{icon:activeMod.icon,t:"Module",v:activeMod.label},{icon:"⚙️",t:"Operation",v:activeTopic},{icon:"📋",t:"In Module",v:activeMod.topics.length+" ops"},{icon:"🗂️",t:"Modules",v:MODULES.length+" total"}].map(c=>(
+                    <div key={c.t} className="ic"><div style={{fontSize:15,marginBottom:4}}>{c.icon}</div><div style={{fontSize:9,letterSpacing:2,color:"rgba(255,255,255,0.22)",marginBottom:3}}>{c.t.toUpperCase()}</div><div style={{fontSize:11,color:activeMod.color}}>{c.v}</div></div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            <div>
+              <div className="lbl">All Modules</div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                {MODULES.map(mod=>(
+                  <span key={mod.id} onClick={()=>selMod(mod)}
+                    style={{padding:"4px 10px",borderRadius:2,fontSize:10,cursor:"pointer",letterSpacing:0.3,transition:"all 0.15s",border:`1px solid ${activeMod.id===mod.id?mod.color:"rgba(255,255,255,0.07)"}`,background:activeMod.id===mod.id?mod.color+"18":"transparent",color:activeMod.id===mod.id?mod.color:"rgba(255,255,255,0.32)"}}>
+                    {mod.icon} {mod.label}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      {/* ── MOBILE BOTTOM NAV ─────────────────────────────── */}
+      <nav className="mob-nav" style={{"--mc":activeMod.color}}>
+        {[
+          {id:'modules', ico:'🧠', label:'MODULES'},
+          {id:'ops',     ico:activeMod.icon, label:'OPS'},
+          {id:'canvas',  ico:'🖼️', label:'CANVAS'},
+          {id:'theory',  ico:'📖', label:'THEORY'},
+        ].map(tab=>(
+          <button key={tab.id} className={`mob-nav-btn${mobTab===tab.id?' a':''}`}
+            onClick={()=>setMobTab(t=>t===tab.id&&tab.id!=='canvas'?'canvas':tab.id)}>
+            <span className="ico">{tab.ico}</span>
+            {tab.label}
+          </button>
+        ))}
+      </nav>
+
+      {/* ── MOBILE MODULES OVERLAY ─────────────────────────── */}
+      <div className={`mob-overlay${mobTab==='modules'?' open':''}`}>
+        <div style={{fontFamily:"'Orbitron',monospace",fontSize:10,color:"#4cc9f0",letterSpacing:2,marginBottom:12}}>SELECT MODULE</div>
+        {MODULES.map(mod=>(
+          <button key={mod.id} onClick={()=>{selMod(mod);setMobTab('ops');}}
+            style={{width:"100%",background:activeMod.id===mod.id?"rgba(255,255,255,0.07)":"transparent",
+              border:"none",borderLeft:`3px solid ${activeMod.id===mod.id?mod.color:"transparent"}`,
+              color:activeMod.id===mod.id?mod.color:"rgba(255,255,255,0.5)",
+              padding:"12px 14px",cursor:"pointer",textAlign:"left",
+              fontFamily:"'Share Tech Mono',monospace",fontSize:12,
+              display:"flex",alignItems:"center",gap:10,marginBottom:2}}>
+            <span style={{fontSize:20}}>{mod.icon}</span>
+            {mod.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── MOBILE OPS OVERLAY ─────────────────────────────── */}
+      <div className={`mob-overlay${mobTab==='ops'?' open':''}`}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
+          <span style={{fontSize:22}}>{activeMod.icon}</span>
+          <div style={{fontFamily:"'Orbitron',monospace",fontSize:11,color:activeMod.color,letterSpacing:1}}>{activeMod.label}</div>
+        </div>
+        <div style={{marginBottom:16}}>
+          {activeMod.topics.map(t=>(
+            <span key={t} className={`ch${activeTopic===t?' a':''}`}
+              style={{"--c":activeMod.color,"--cb":activeMod.color+"1a"}}
+              onClick={()=>{setActiveTopic(t);setMobTab('canvas');}}>
+              {t}
+            </span>
+          ))}
+        </div>
+        {curParams.length>0&&<>
+          <div className="lbl" style={{marginTop:0}}>Parameters</div>
+          {curParams.map(p=>(
+            <div key={p.key} style={{marginBottom:16}}>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
+                <span style={{fontSize:11,color:"rgba(255,255,255,0.5)"}}>{p.label}</span>
+                <span style={{fontSize:11,color:activeMod.color}}>{params[p.key]}</span>
+              </div>
+              <input type="range" className="sl" style={{"--c":activeMod.color}}
+                min={p.min} max={p.max} step={p.step} value={params[p.key]||p.min}
+                onChange={e=>setParams(prev=>({...prev,[p.key]:parseFloat(e.target.value)}))}/>
+            </div>
+          ))}
+        </>}
+      </div>
+
+      {/* ── MOBILE THEORY OVERLAY ──────────────────────────── */}
+      <div className={`mob-overlay${mobTab==='theory'?' open':''}`}>
+        <div className="lbl" style={{marginTop:0}}>Theory — {activeMod.label}</div>
+        {Object.entries(activeMod.theory||{}).map(([k,v])=>(
+          <div key={k} style={{marginBottom:8}}>
+            <div onClick={()=>setTheory(theory===k?null:k)}
+              style={{cursor:"pointer",padding:"10px 12px",background:"rgba(255,255,255,0.03)",
+                border:"1px solid rgba(255,255,255,0.07)",borderRadius:3,
+                color:theory===k?activeMod.color:"rgba(255,255,255,0.6)",fontSize:12}}>
+              {theory===k?"▼":"▶"} {k}
+            </div>
+            {theory===k&&<div style={{padding:"10px 12px",background:"rgba(255,255,255,0.02)",
+              border:"1px solid rgba(255,255,255,0.05)",borderTop:"none",
+              fontSize:11,lineHeight:1.8,color:"rgba(255,255,255,0.55)"}}>
+              {v}
+            </div>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}function RegistrationPanel({color, activeTopic}){
+  const [img1,setImg1]=useState(null);
+  const [img2,setImg2]=useState(null);
+  const [busy,setBusy]=useState(false);
+  const [log,setLog]=useState("");
+  const [computed,setComputed]=useState(null);
+  const c1=useRef(null),c2=useRef(null);
+  const cResult=useRef(null);
+  const cH1=useRef(null),cH2=useRef(null),cH3=useRef(null);
+
+  // ── Load image ─────────────────────────────────────────────────────────────
+  const loadImg=(file,setFn,ref)=>{
+    const r=new FileReader();
+    r.onload=e=>{
+      const img=new Image();
+      img.onload=()=>{
+        const MAX=500,sc=Math.min(1,MAX/Math.max(img.width,img.height));
+        const W=Math.round(img.width*sc),H=Math.round(img.height*sc);
+        const cv=document.createElement("canvas");cv.width=W;cv.height=H;
+        cv.getContext("2d").drawImage(img,0,0,W,H);
+        const id=cv.getContext("2d").getImageData(0,0,W,H);
+        const data=new Uint8ClampedArray(id.data);
+        setFn({data,W,H,id});
+        if(ref.current){ref.current.width=W;ref.current.height=H;ref.current.getContext("2d").putImageData(id,0,0);}
+      };img.src=e.target.result;
+    };r.readAsDataURL(file);
+  };
+
+  // ── Gaussian blur ──────────────────────────────────────────────────────────
+  const gaussBlur=(g,W,H,sigma=1.5)=>{
+    const ks=Math.round(sigma*3)*2+1,half=ks>>1;
+    const kern=new Float32Array(ks);
+    let sum=0;
+    for(let i=0;i<ks;i++){kern[i]=Math.exp(-0.5*((i-half)/sigma)**2);sum+=kern[i];}
+    for(let i=0;i<ks;i++) kern[i]/=sum;
+    const tmp=new Float32Array(W*H),out=new Float32Array(W*H);
+    // Horizontal
+    for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+      let s=0;
+      for(let k=0;k<ks;k++){const px=Math.min(Math.max(x+k-half,0),W-1);s+=g[y*W+px]*kern[k];}
+      tmp[y*W+x]=s;
+    }
+    // Vertical
+    for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+      let s=0;
+      for(let k=0;k<ks;k++){const py=Math.min(Math.max(y+k-half,0),H-1);s+=tmp[py*W+x]*kern[k];}
+      out[y*W+x]=s;
+    }
+    return out;
+  };
+
+  // ── Grayscale ──────────────────────────────────────────────────────────────
+  const toGray=(data,W,H)=>{
+    const g=new Float32Array(W*H);
+    for(let i=0;i<W*H;i++) g[i]=0.299*data[i*4]+0.587*data[i*4+1]+0.114*data[i*4+2];
+    return g;
+  };
+
+  // ── Multi-scale Harris (detects more stable corners) ───────────────────────
+  const harrisMS=(gray,W,H,nMax=600)=>{
+    const scales=[1,1.6,2.5];
+    const allKps=[];
+    for(const sigma of scales){
+      const g=gaussBlur(gray,W,H,sigma);
+      const Ix=new Float32Array(W*H),Iy=new Float32Array(W*H);
+      for(let y=1;y<H-1;y++) for(let x=1;x<W-1;x++){
+        Ix[y*W+x]=(g[y*W+x+1]-g[y*W+x-1])*0.5;
+        Iy[y*W+x]=(g[(y+1)*W+x]-g[(y-1)*W+x])*0.5;
+      }
+      const R=new Float32Array(W*H);
+      const winR=Math.round(sigma*2)+1;
+      for(let y=winR+1;y<H-winR-1;y++) for(let x=winR+1;x<W-winR-1;x++){
+        let a=0,b=0,c=0;
+        for(let dy=-winR;dy<=winR;dy++) for(let dx=-winR;dx<=winR;dx++){
+          const ix=Ix[(y+dy)*W+(x+dx)],iy=Iy[(y+dy)*W+(x+dx)];
+          a+=ix*ix; b+=iy*iy; c+=ix*iy;
+        }
+        R[y*W+x]=a*b-c*c-0.04*(a+b)*(a+b);
+      }
+      let maxR=0;
+      for(let i=0;i<W*H;i++) if(R[i]>maxR) maxR=R[i];
+      const thr=maxR*0.005;
+      const nms=Math.round(sigma*4)+3;
+      for(let y=nms;y<H-nms;y++) for(let x=nms;x<W-nms;x++){
+        if(R[y*W+x]<thr) continue;
+        let best=true;
+        for(let dy=-nms;dy<=nms&&best;dy++) for(let dx=-nms;dx<=nms;dx++){
+          if(!dx&&!dy) continue;
+          if(R[(y+dy)*W+(x+dx)]>=R[y*W+x]){best=false;break;}
+        }
+        if(best) allKps.push({x,y,r:R[y*W+x],sigma});
+      }
+    }
+    allKps.sort((a,b)=>b.r-a.r);
+    // Deduplicate close points
+    const kept=[], used=new Set();
+    for(const kp of allKps){
+      const key=`${Math.floor(kp.x/5)}_${Math.floor(kp.y/5)}`;
+      if(!used.has(key)){used.add(key);kept.push(kp);}
+      if(kept.length>=nMax) break;
+    }
+    return kept;
+  };
+
+  // ── SIFT-like gradient orientation histogram descriptor ────────────────────
+  const buildSIFTDesc=(gray,W,H,x,y,sigma=1.6)=>{
+    // 4x4 cells, 8 orientation bins = 128-dim like SIFT
+    const g=gaussBlur(gray,W,H,sigma);
+    const cellSz=4,nCells=4,nBins=8;
+    const desc=new Float32Array(nCells*nCells*nBins);
+    const patchSz=nCells*cellSz,half=patchSz>>1;
+    let di=0;
+    for(let cy=0;cy<nCells;cy++) for(let cx=0;cx<nCells;cx++){
+      const hist=new Float32Array(nBins);
+      for(let dy=0;dy<cellSz;dy++) for(let dx=0;dx<cellSz;dx++){
+        const px=Math.min(Math.max(x-half+cx*cellSz+dx,1),W-2);
+        const py=Math.min(Math.max(y-half+cy*cellSz+dy,1),H-2);
+        const gx=g[py*W+px+1]-g[py*W+px-1];
+        const gy=g[(py+1)*W+px]-g[(py-1)*W+px];
+        const mag=Math.sqrt(gx*gx+gy*gy);
+        const angle=((Math.atan2(gy,gx)+Math.PI)/(2*Math.PI)*nBins+nBins)%nBins;
+        const b0=Math.floor(angle)%nBins,b1=(b0+1)%nBins;
+        const frac=angle-Math.floor(angle);
+        hist[b0]+=mag*(1-frac);
+        hist[b1]+=mag*frac;
+      }
+      for(let b=0;b<nBins;b++) desc[di++]=hist[b];
+    }
+    // Normalize (SIFT-style: normalize, clamp, renormalize)
+    let norm=0; for(let i=0;i<desc.length;i++) norm+=desc[i]*desc[i];
+    norm=Math.sqrt(norm)||1;
+    for(let i=0;i<desc.length;i++) desc[i]=Math.min(desc[i]/norm,0.2);
+    norm=0; for(let i=0;i<desc.length;i++) norm+=desc[i]*desc[i];
+    norm=Math.sqrt(norm)||1;
+    for(let i=0;i<desc.length;i++) desc[i]/=norm;
+    return desc;
+  };
+
+  // ── L2 distance ────────────────────────────────────────────────────────────
+  const l2=(a,b)=>{let s=0;for(let i=0;i<a.length;i++){const v=a[i]-b[i];s+=v*v;}return s;};
+
+  // ── Ratio-test matching (Lowe's) ────────────────────────────────────────────
+  const ratioMatch=(kps1,ds1,kps2,ds2,ratio=0.75)=>{
+    const M=[];
+    for(let i=0;i<kps1.length;i++){
+      let d1=Infinity,d2=Infinity,bj=-1;
+      for(let j=0;j<kps2.length;j++){
+        const d=l2(ds1[i],ds2[j]);
+        if(d<d1){d2=d1;d1=d;bj=j;} else if(d<d2) d2=d;
+      }
+      if(bj>=0&&d1<ratio*ratio*d2) M.push({i,j:bj,d:d1});
+    }
+    M.sort((a,b)=>a.d-b.d);
+    return M;
+  };
+
+  // ── DLT homography ─────────────────────────────────────────────────────────
+  const dlt4=(p1,p2)=>{
+    const A=[];
+    for(let k=0;k<4;k++){
+      const[x,y]=p1[k],[u,v]=p2[k];
+      A.push([-x,-y,-1,0,0,0,u*x,u*y,u]);
+      A.push([0,0,0,-x,-y,-1,v*x,v*y,v]);
+    }
+    const M=A.map(r=>[...r]);
+    for(let c=0;c<8;c++){
+      let mx=0,mr=c;
+      for(let r=c;r<8;r++) if(Math.abs(M[r][c])>mx){mx=Math.abs(M[r][c]);mr=r;}
+      if(mx<1e-10) return null;
+      [M[c],M[mr]]=[M[mr],M[c]];
+      const dv=M[c][c]; for(let cc=c;cc<9;cc++) M[c][cc]/=dv;
+      for(let r=0;r<8;r++){if(r===c)continue;const f=M[r][c];for(let cc=c;cc<9;cc++) M[r][cc]-=f*M[c][cc];}
+    }
+    const h=M.map(r=>-r[8]); h.push(1); return h;
+  };
+
+  const apH=(h,x,y)=>{const w=h[6]*x+h[7]*y+h[8]||1e-10;return[(h[0]*x+h[1]*y+h[2])/w,(h[3]*x+h[4]*y+h[5])/w];};
+
+  // ── RANSAC ─────────────────────────────────────────────────────────────────
+  const doRansac=(p1,p2,thr=5,its=2000)=>{
+    if(p1.length<4) return null;
+    let bH=null,bN=0,bMask=[];
+    const N=p1.length;
+    for(let it=0;it<its;it++){
+      const idx=[];
+      while(idx.length<4){const r=Math.floor(Math.random()*N);if(!idx.includes(r))idx.push(r);}
+      const H=dlt4(idx.map(i=>p1[i]),idx.map(i=>p2[i]));
+      if(!H) continue;
+      let n=0; const mask=new Array(N).fill(false);
+      for(let i=0;i<N;i++){
+        const[px,py]=apH(H,p1[i][0],p1[i][1]);
+        const dx=px-p2[i][0],dy=py-p2[i][1];
+        if(Math.sqrt(dx*dx+dy*dy)<thr){mask[i]=true;n++;}
+      }
+      if(n>bN){bN=n;bH=H;bMask=mask;}
+    }
+    return bH?{H:bH,mask:bMask,inliers:bN}:null;
+  };
+
+  // ── Warp image ─────────────────────────────────────────────────────────────
+  const warpImg=(srcData,sW,sH,H,dW,dH)=>{
+    const[h0,h1,h2,h3,h4,h5,h6,h7,h8]=H;
+    const det=h0*(h4*h8-h5*h7)-h1*(h3*h8-h5*h6)+h2*(h3*h7-h4*h6);
+    if(Math.abs(det)<1e-10) return new Uint8ClampedArray(dW*dH*4);
+    const inv=[(h4*h8-h5*h7)/det,(h2*h7-h1*h8)/det,(h1*h5-h2*h4)/det,
+               (h5*h6-h3*h8)/det,(h0*h8-h2*h6)/det,(h2*h3-h0*h5)/det,
+               (h3*h7-h4*h6)/det,(h1*h6-h0*h7)/det,(h0*h4-h1*h3)/det];
+    const out=new Uint8ClampedArray(dW*dH*4);
+    for(let y=0;y<dH;y++) for(let x=0;x<dW;x++){
+      const iw=inv[6]*x+inv[7]*y+inv[8]||1e-10;
+      const sx=(inv[0]*x+inv[1]*y+inv[2])/iw, sy=(inv[3]*x+inv[4]*y+inv[5])/iw;
+      if(sx<0||sx>=sW-1||sy<0||sy>=sH-1) continue;
+      const x0=Math.floor(sx),y0=Math.floor(sy),dx=sx-x0,dy=sy-y0;
+      const oi=(y*dW+x)*4;
+      for(let c=0;c<3;c++){
+        out[oi+c]=Math.round(
+          (1-dx)*(1-dy)*srcData[(y0*sW+x0)*4+c]+
+          dx*(1-dy)*srcData[(y0*sW+x0+1)*4+c]+
+          (1-dx)*dy*srcData[((y0+1)*sW+x0)*4+c]+
+          dx*dy*srcData[((y0+1)*sW+x0+1)*4+c]
+        );
+      }
+      out[oi+3]=255;
+    }
+    return out;
+  };
+
+  // ── Draw histogram ─────────────────────────────────────────────────────────
+  const drawHist=(ref,data,W,H,title,validOnly=false)=>{
+    if(!ref.current) return;
+    const cv=ref.current,cw=280,ch=130;
+    cv.width=cw; cv.height=ch;
+    const ctx=cv.getContext("2d");
+    ctx.fillStyle="#06060e"; ctx.fillRect(0,0,cw,ch);
+    ctx.font="10px monospace"; ctx.fillStyle="rgba(255,255,255,0.3)";
+    ctx.fillText(title,6,13);
+    [["#ff4d6d",0],["#06d6a0",1],["#4cc9f0",2]].forEach(([col,ch2])=>{
+      const hist=new Array(256).fill(0);
+      for(let p=0;p<W*H;p++){
+        if(validOnly&&data[p*4+3]===0) continue;
+        hist[data[p*4+ch2]]++;
+      }
+      const mx=Math.max(...hist)||1;
+      ctx.beginPath(); ctx.strokeStyle=col; ctx.lineWidth=1.3; ctx.globalAlpha=0.9;
+      for(let x=0;x<256;x++){
+        const bx=5+x*(cw-10)/256, by=ch-10-hist[x]/mx*(ch-25);
+        x===0?ctx.moveTo(bx,by):ctx.lineTo(bx,by);
+      }
+      ctx.stroke(); ctx.globalAlpha=1;
+    });
+    ctx.strokeStyle="rgba(255,255,255,0.07)";
+    ctx.beginPath(); ctx.moveTo(5,ch-10); ctx.lineTo(cw-5,ch-10); ctx.stroke();
+  };
+
+  // ── RUN ALL ─────────────────────────────────────────────────────────────────
+  const runAll=()=>{
+    if(!img1||!img2){alert("Please upload both images first.");return;}
+    setBusy(true); setLog("Step 1/4: Detecting multi-scale Harris corners...");
+    // Use setTimeout chain to allow UI to update between steps
+    setTimeout(()=>{
+      const g1=toGray(img1.data,img1.W,img1.H);
+      const g2=toGray(img2.data,img2.W,img2.H);
+      const kps1=harrisMS(g1,img1.W,img1.H,600);
+      const kps2=harrisMS(g2,img2.W,img2.H,600);
+      setLog(`Step 2/4: Building SIFT-like descriptors (${kps1.length}+${kps2.length} KP)...`);
+      setTimeout(()=>{
+        const ds1=kps1.map(({x,y,sigma})=>buildSIFTDesc(g1,img1.W,img1.H,x,y,sigma||1.6));
+        const ds2=kps2.map(({x,y,sigma})=>buildSIFTDesc(g2,img2.W,img2.H,x,y,sigma||1.6));
+        setLog("Step 3/4: Ratio-test matching...");
+        setTimeout(()=>{
+          const matches=ratioMatch(kps1,ds1,kps2,ds2,0.75);
+          setLog(`Step 4/4: RANSAC homography (${matches.length} matches)...`);
+          setTimeout(()=>{
+            const p1=matches.map(({i})=>[kps1[i].x,kps1[i].y]);
+            const p2=matches.map(({j})=>[kps2[j].x,kps2[j].y]);
+            const res=matches.length>=4?doRansac(p1,p2,5,2000):null;
+            const dW=img2.W,dH=img2.H;
+            let warpedData=null,ovData=null,dfData=null;
+            if(res){
+              warpedData=warpImg(img1.data,img1.W,img1.H,res.H,dW,dH);
+              ovData=new Uint8ClampedArray(dW*dH*4);
+              dfData=new Uint8ClampedArray(dW*dH*4);
+              for(let p=0;p<dW*dH;p++){
+                const oi=p*4;
+                if(warpedData[oi+3]>0){
+                  ovData[oi]  =Math.round(warpedData[oi]  *0.5+img2.data[oi]  *0.5);
+                  ovData[oi+1]=Math.round(warpedData[oi+1]*0.5+img2.data[oi+1]*0.5);
+                  ovData[oi+2]=Math.round(warpedData[oi+2]*0.5+img2.data[oi+2]*0.5);
+                  ovData[oi+3]=255;
+                  const dr=Math.abs(warpedData[oi]-img2.data[oi]);
+                  const dg=Math.abs(warpedData[oi+1]-img2.data[oi+1]);
+                  const db=Math.abs(warpedData[oi+2]-img2.data[oi+2]);
+                  const v=Math.round((dr+dg+db)/3);
+                  dfData[oi]=v; dfData[oi+1]=Math.round(v*0.4); dfData[oi+2]=255-v;
+                }else{
+                  ovData[oi]=img2.data[oi]; ovData[oi+1]=img2.data[oi+1];
+                  ovData[oi+2]=img2.data[oi+2]; ovData[oi+3]=255;
+                  dfData[oi]=img2.data[oi]; dfData[oi+1]=img2.data[oi+1];
+                  dfData[oi+2]=img2.data[oi+2];
+                }
+                dfData[oi+3]=255;
+              }
+            }
+            // PSNR
+            let psnrVal="—";
+            if(warpedData){
+              let mse=0,pc=0;
+              for(let p=0;p<dW*dH;p++){if(warpedData[p*4+3]===0)continue;for(let c=0;c<3;c++){const d=warpedData[p*4+c]-img2.data[p*4+c];mse+=d*d;}pc++;}
+              psnrVal=pc>0&&mse>0?Math.round(10*Math.log10(255*255/(mse/(pc*3)))*10)/10:99;
+            }
+            // Shift
+            let shX="—",shY="—";
+            if(res&&matches.length>0){
+              let sx=0,sy=0,cnt=0;
+              matches.forEach(({i,j},idx)=>{if(res.mask[idx]){sx+=p2[idx][0]-p1[idx][0];sy+=p2[idx][1]-p1[idx][1];cnt++;}});
+              if(cnt){shX=Math.round(sx/cnt*10)/10;shY=Math.round(sy/cnt*10)/10;}
+            }
+            setComputed({kps1,kps2,matches,res,warpedData,ovData,dfData,dW,dH,psnrVal,shX,shY,p1,p2});
+            setLog(`✓  KP: ${kps1.length}+${kps2.length}  |  Matches: ${matches.length}  |  Inliers: ${res?res.inliers:"—"}/${matches.length}  |  PSNR: ${psnrVal} dB`);
+            setBusy(false);
+          },30);
+        },30);
+      },30);
+    },30);
+  };
+
+  const doReset=()=>{
+    setImg1(null);setImg2(null);setComputed(null);setLog("");setBusy(false);
+    [c1,c2,cResult,cH1,cH2,cH3].forEach(r=>{if(r.current){r.current.width=2;r.current.height=2;}});
+  };
+
+  // ── Render topic view ──────────────────────────────────────────────────────
+  useEffect(()=>{
+    if(!computed) return;
+    const{kps1,kps2,matches,res,warpedData,ovData,dfData,dW,dH}=computed;
+    const t=activeTopic;
+
+    if(t==="Feature Detection"){
+      [[c1,img1,kps1,"#ff4d6d"],[c2,img2,kps2,"#06d6a0"]].forEach(([ref,im,kps,col])=>{
+        if(!ref.current||!im) return;
+        ref.current.width=im.W; ref.current.height=im.H;
+        const ctx=ref.current.getContext("2d");
+        ctx.putImageData(im.id,0,0);
+        ctx.fillStyle=col;
+        kps.forEach(({x,y})=>{ctx.beginPath();ctx.arc(x,y,2,0,Math.PI*2);ctx.fill();});
+      });
+    }
+
+    if(t==="Keypoint Matching"||t==="Upload & Match"){
+      if(!cResult.current) return;
+      const GAP=4,CW=img1.W+img2.W+GAP,CH=Math.max(img1.H,img2.H);
+      cResult.current.width=CW; cResult.current.height=CH;
+      const ctx=cResult.current.getContext("2d");
+      ctx.fillStyle="#06060e"; ctx.fillRect(0,0,CW,CH);
+      ctx.putImageData(img1.id,0,Math.round((CH-img1.H)/2));
+      ctx.putImageData(img2.id,img1.W+GAP,Math.round((CH-img2.H)/2));
+      const show=matches.slice(0,80);
+      show.forEach(({i,j})=>{
+        ctx.strokeStyle="rgba(0,255,170,0.8)";
+        ctx.lineWidth=1;
+        ctx.beginPath();
+        ctx.moveTo(kps1[i].x,Math.round((CH-img1.H)/2)+kps1[i].y);
+        ctx.lineTo(img1.W+GAP+kps2[j].x,Math.round((CH-img2.H)/2)+kps2[j].y);
+        ctx.stroke();
+      });
+      ctx.fillStyle="#00ffaa";
+      show.forEach(({i,j})=>{
+        ctx.beginPath();ctx.arc(kps1[i].x,Math.round((CH-img1.H)/2)+kps1[i].y,3,0,Math.PI*2);ctx.fill();
+        ctx.beginPath();ctx.arc(img1.W+GAP+kps2[j].x,Math.round((CH-img2.H)/2)+kps2[j].y,3,0,Math.PI*2);ctx.fill();
+      });
+    }
+
+    if(t==="Homography"){
+      if(!cResult.current) return;
+      const W1=img1.W,H1=img1.H,W2=img2.W,H2=img2.H;
+      const CH=Math.max(H1,H2,dH);
+      const CW=W1+W2+(ovData?dW:0)+16;
+      cResult.current.width=CW; cResult.current.height=CH;
+      const ctx=cResult.current.getContext("2d");
+      ctx.fillStyle="#06060e"; ctx.fillRect(0,0,CW,CH);
+      ctx.putImageData(img1.id,0,Math.round((CH-H1)/2));
+      ctx.putImageData(img2.id,W1+8,Math.round((CH-H2)/2));
+      if(ovData){
+        ctx.putImageData(new ImageData(ovData,dW,dH),W1+W2+16,Math.round((CH-dH)/2));
+      }
+      ctx.fillStyle="rgba(255,255,255,0.35)"; ctx.font="10px monospace";
+      ctx.fillText("Reference",4,12);
+      ctx.fillText("Moving",W1+12,12);
+      if(ovData) ctx.fillText("Registered Overlay",W1+W2+20,12);
+      setTimeout(()=>{
+        drawHist(cH1,img1.data,W1,H1,"Reference");
+        drawHist(cH2,img2.data,W2,H2,"Moving");
+        if(warpedData) drawHist(cH3,warpedData,dW,dH,"Registered (valid px)",true);
+      },60);
+    }
+
+    if(t==="Aligned Overlay"){
+      if(!cResult.current||!warpedData) return;
+      cResult.current.width=dW; cResult.current.height=dH;
+      const ctx=cResult.current.getContext("2d");
+      ctx.fillStyle="#000"; ctx.fillRect(0,0,dW,dH);
+      ctx.putImageData(new ImageData(warpedData,dW,dH),0,0);
+    }
+
+    if(t==="Difference Map"){
+      if(!cResult.current||!dfData) return;
+      cResult.current.width=dW; cResult.current.height=dH;
+      cResult.current.getContext("2d").putImageData(new ImageData(dfData,dW,dH),0,0);
+    }
+
+  },[computed,activeTopic]);
+
+  // ── Styles ─────────────────────────────────────────────────────────────────
+  const LBL={fontSize:9,letterSpacing:3,color:"rgba(255,255,255,0.2)",textTransform:"uppercase",marginBottom:5};
+  const BOX={background:"#06060e",border:"1px solid rgba(255,255,255,0.07)",borderRadius:4,overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",minHeight:110};
+  const Stat=({l,v,c="#4cc9f0"})=>(
+    <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:3,padding:"6px 10px",textAlign:"center",minWidth:75}}>
+      <div style={{fontSize:8,letterSpacing:2,color:"rgba(255,255,255,0.25)",marginBottom:2}}>{l}</div>
+      <div style={{fontSize:13,fontWeight:"bold",color:c}}>{v}</div>
+    </div>
+  );
+
+  return(
+    <div style={{padding:14,overflowY:"auto",flex:1,display:"flex",flexDirection:"column",gap:10}}>
+
+      {/* Action buttons */}
+      <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+        <button onClick={runAll} disabled={busy}
+          style={{background:computed?"rgba(6,214,160,0.15)":"rgba(255,255,255,0.03)",border:`1px solid ${computed?color:"rgba(255,255,255,0.2)"}`,color:computed?color:"rgba(255,255,255,0.5)",padding:"8px 18px",cursor:busy?"not-allowed":"pointer",borderRadius:3,fontFamily:"monospace",fontSize:11,letterSpacing:1,opacity:busy?0.7:1}}>
+          {busy?"⏳ Processing...":"⚡ Run Registration"}
+        </button>
+        <button onClick={doReset}
+          style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.35)",padding:"8px 14px",cursor:"pointer",borderRadius:3,fontFamily:"monospace",fontSize:11}}>
+          ↺ Reset
+        </button>
+      </div>
+
+      {/* Log */}
+      {log&&<div style={{fontSize:10,padding:"5px 10px",borderRadius:3,
+        background:computed&&!busy?"rgba(6,214,160,0.06)":"rgba(247,127,0,0.06)",
+        border:`1px solid ${computed&&!busy?"rgba(6,214,160,0.25)":"rgba(247,127,0,0.25)"}`,
+        color:computed&&!busy?"#06d6a0":"#f77f00"}}>
+        {log}
+      </div>}
+
+      {/* Upload panels */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+        {[
+          {label:"REFERENCE IMAGE",ref:c1,img:img1,set:setImg1,cl:color},
+          {label:"MOVING IMAGE",   ref:c2,img:img2,set:setImg2,cl:"#4cc9f0"},
+        ].map(({label,ref,img,set,cl})=>(
+          <div key={label}>
+            <div style={LBL}>{label}</div>
+            <div style={{...BOX,border:`1px solid ${cl}33`,minHeight:150}}>
+              <canvas ref={ref} style={{maxWidth:"100%",maxHeight:190,display:"block"}}/>
+            </div>
+            <label style={{display:"block",marginTop:5,textAlign:"center",
+              background:`${cl}0f`,border:`1px solid ${cl}44`,color:cl,
+              padding:"6px",cursor:"pointer",borderRadius:3,fontFamily:"monospace",fontSize:10,letterSpacing:1}}>
+              ⬆ {img?"Change Image":"Upload Image"}
+              <input type="file" accept="image/*" style={{display:"none"}} onChange={e=>e.target.files[0]&&loadImg(e.target.files[0],set,ref)}/>
+            </label>
+          </div>
+        ))}
+      </div>
+
+      {/* Stats row */}
+      {computed&&<div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
+        <Stat l="KP A"    v={computed.kps1.length} c="#f72585"/>
+        <Stat l="KP B"    v={computed.kps2.length} c="#06d6a0"/>
+        <Stat l="MATCHES" v={computed.matches.length} c="#4361ee"/>
+        <Stat l="INLIERS" v={computed.res?computed.res.inliers:"—"} c="#f77f00"/>
+        <Stat l="SHIFT X" v={computed.shX!=="—"?computed.shX+"px":"—"} c="#4cc9f0"/>
+        <Stat l="SHIFT Y" v={computed.shY!=="—"?computed.shY+"px":"—"} c="#4cc9f0"/>
+        <Stat l="PSNR"    v={computed.psnrVal!=="—"?computed.psnrVal+" dB":"—"}
+          c={computed.psnrVal>25?"#06d6a0":computed.psnrVal>15?"#f77f00":"#f72585"}/>
+      </div>}
+
+      {/* Feature Detection view */}
+      {computed&&activeTopic==="Feature Detection"&&<>
+        <div style={LBL}>DETECTED KEYPOINTS — {computed.kps1.length} + {computed.kps2.length}</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+          <div>
+            <div style={{...LBL,color:"#f72585"}}>Reference — {computed.kps1.length} KP</div>
+            <div style={BOX}><canvas ref={c1} style={{maxWidth:"100%",maxHeight:240,display:"block"}}/></div>
+          </div>
+          <div>
+            <div style={{...LBL,color:"#06d6a0"}}>Moving — {computed.kps2.length} KP</div>
+            <div style={BOX}><canvas ref={c2} style={{maxWidth:"100%",maxHeight:240,display:"block"}}/></div>
+          </div>
+        </div>
+      </>}
+
+      {/* Keypoint Matching view */}
+      {computed&&(activeTopic==="Keypoint Matching"||activeTopic==="Upload & Match")&&<>
+        <div style={LBL}>KEYPOINT MATCHES — {computed.matches.length} GOOD MATCHES  |  INLIERS: {computed.res?computed.res.inliers:"—"}/{computed.matches.length}</div>
+        <div style={BOX}><canvas ref={cResult} style={{maxWidth:"100%",display:"block"}}/></div>
+      </>}
+
+      {/* Homography view */}
+      {computed&&activeTopic==="Homography"&&<>
+        <div style={LBL}>REGISTRATION RESULT — REFERENCE | MOVING | OVERLAY</div>
+        <div style={BOX}><canvas ref={cResult} style={{maxWidth:"100%",display:"block"}}/></div>
+        <div style={LBL}>RGB HISTOGRAM COMPARISON</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+          <div style={BOX}><canvas ref={cH1} style={{maxWidth:"100%",display:"block"}}/></div>
+          <div style={BOX}><canvas ref={cH2} style={{maxWidth:"100%",display:"block"}}/></div>
+          <div style={BOX}><canvas ref={cH3} style={{maxWidth:"100%",display:"block"}}/></div>
+        </div>
+      </>}
+
+      {/* Aligned Overlay view */}
+      {computed&&activeTopic==="Aligned Overlay"&&<>
+        <div style={LBL}>REGISTERED IMAGE — WARPED REFERENCE INTO MOVING SPACE</div>
+        <div style={BOX}><canvas ref={cResult} style={{maxWidth:"100%",maxHeight:400,display:"block"}}/></div>
+      </>}
+
+      {/* Difference Map view */}
+      {computed&&activeTopic==="Difference Map"&&<>
+        <div style={LBL}>DIFFERENCE MAP — BLUE: SIMILAR  |  RED: DIFFERENT</div>
+        <div style={BOX}><canvas ref={cResult} style={{maxWidth:"100%",maxHeight:400,display:"block"}}/></div>
+      </>}
+
+      {/* Instructions when no result yet */}
+      {!computed&&<div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.05)",borderRadius:4,padding:14,fontSize:11,color:"rgba(255,255,255,0.35)",lineHeight:2.2}}>
+        <div style={{fontSize:10,letterSpacing:2,color,marginBottom:8}}>HOW TO USE</div>
+        1. Upload <span style={{color:"#f72585"}}>Reference Image</span> — the image you want to locate<br/>
+        2. Upload <span style={{color:"#4cc9f0"}}>Moving Image</span> — the scene where it appears<br/>
+        3. Click <span style={{color:"#06d6a0"}}>Run Registration</span> — computes all results at once<br/>
+        4. Switch operations in left panel to see each result:<br/>
+        &nbsp;&nbsp;• <span style={{color}}>Feature Detection</span> → detected corners on each image<br/>
+        &nbsp;&nbsp;• <span style={{color}}>Keypoint Matching</span> → green correspondence lines<br/>
+        &nbsp;&nbsp;• <span style={{color}}>Homography</span> → 3 panels + RGB histograms<br/>
+        &nbsp;&nbsp;• <span style={{color}}>Aligned Overlay</span> → warped reference (black bg)<br/>
+        &nbsp;&nbsp;• <span style={{color}}>Difference Map</span> → pixel difference map<br/>
+        <br/>
+        <span style={{color:"#f77f00"}}>⚠ Processing takes 10-30 seconds depending on image size</span>
+      </div>}
+    </div>
+  );
+}
+
+
+// ----------------------------------------------------------
+// MAIN APP
+// ----------------------------------------------------------
+const REG_SPECIAL=["Upload & Match","Feature Detection","Keypoint Matching","Homography","Aligned Overlay","Difference Map"];
+const MATCH_SPECIAL=["Upload & Match","BF Match Viz"];
+const PARAM_MAP={
+  "Gamma":[{key:"gamma",label:"gamma",min:0.1,max:3,step:0.05}],
+  "Bit-plane Slicing":[{key:"plane",label:"Plane",min:0,max:7,step:1}],
+  "Thresholding":[{key:"thresh",label:"T",min:0,max:255,step:1}],
+  "Sigmoid":[{key:"k",label:"k",min:0.01,max:0.2,step:0.01}],
+  "Global Threshold":[{key:"thresh",label:"T",min:0,max:255,step:1}],
+  "Ideal LP":[{key:"d0",label:"D0",min:5,max:120,step:1}],
+  "Butterworth LP":[{key:"d0",label:"D0",min:5,max:120,step:1},{key:"n",label:"Order",min:1,max:5,step:1}],
+  "Gaussian LP":[{key:"d0",label:"D0",min:5,max:120,step:1}],
+  "Ideal HP":[{key:"d0",label:"D0",min:5,max:120,step:1}],
+  "Butterworth HP":[{key:"d0",label:"D0",min:5,max:120,step:1},{key:"n",label:"Order",min:1,max:5,step:1}],
+  "Gaussian HP":[{key:"d0",label:"D0",min:5,max:120,step:1}],
+  "Band Reject":[{key:"d0",label:"Center",min:10,max:100,step:1}],
+  "Band Pass":[{key:"d0",label:"Center",min:10,max:100,step:1}],
+  "Add Gaussian Noise":[{key:"sigma",label:"sigma",min:1,max:80,step:1}],
+  "Rotation":[{key:"angle",label:"deg",min:-90,max:90,step:1}],
+  "Scaling":[{key:"scale",label:"x",min:0.4,max:3,step:0.1}],
+  "Translation":[{key:"tx",label:"tx",min:-80,max:80,step:1},{key:"ty",label:"ty",min:-80,max:80,step:1}],
+  "Soft Threshold":[{key:"wavThresh",label:"T",min:1,max:80,step:1}],
+  "Hard Threshold":[{key:"wavThresh",label:"T",min:1,max:80,step:1}],
+  "Quantize HQ":[{key:"thresh",label:"Step",min:2,max:32,step:2}],
+  "Quantize LQ":[{key:"thresh",label:"Step",min:8,max:64,step:4}],
+  "Wavelet Compress":[{key:"thresh",label:"Q",min:4,max:64,step:4}],
+};
+
+export default function App(){
+  const [activeMod,setActiveMod]=useState(MODULES[0]);
+  const [activeTopic,setActiveTopic]=useState(MODULES[0].topics[0]);
+  const [origData,setOrigData]=useState(null);
+  const [procData,setProcData]=useState(null);
+  const [params,setParams]=useState({gamma:1.0,thresh:128,plane:7,d0:40,n:2,sigma:20,k:0.05,angle:15,scale:1.2,tx:20,ty:20,wavThresh:20});
+  const [sidebar,setSidebar]=useState(true);
+  const [theory,setTheory]=useState(null);
+  const [diffMode,setDiffMode]=useState(false);
+  const [webcamOn,setWebcamOn]=useState(false);
+  const [webcamErr,setWebcamErr]=useState(null);
+  const [liveMode,setLiveMode]=useState('sobel'); // 'sobel' | 'color' | 'capture'
+  const [quizMode,setQuizMode]=useState(false);
+  const [quizQ,setQuizQ]=useState(null);
+  const [quizScore,setQuizScore]=useState({right:0,wrong:0});
+  const [quizFeedback,setQuizFeedback]=useState(null);
+  const [quizImgUrl,setQuizImgUrl]=useState(null);
+  const [mobTab,setMobTab]=useState('canvas'); // 'modules'|'ops'|'canvas'|'theory'
+  const origRef=useRef(null),procRef=useRef(null),fileRef=useRef(null),webcamRef=useRef(null),diffRef=useRef(null),streamRef=useRef(null),camFileRef=useRef(null),liveCanvasRef=useRef(null),animFrameRef=useRef(null);
+
+  const isSpecialReg=activeMod.id==="registration"&&REG_SPECIAL.includes(activeTopic);
+  const isSpecialMatch=activeMod.id==="matching"&&MATCH_SPECIAL.includes(activeTopic);
+  const showRegPanel=isSpecialReg||isSpecialMatch;
+
+  useEffect(()=>{
+    const c=document.createElement("canvas");c.width=320;c.height=320;
+    const ctx=c.getContext("2d");
+    const g=ctx.createRadialGradient(160,160,10,160,160,160);
+    g.addColorStop(0,"#ffffff");g.addColorStop(0.4,"#aaaaaa");g.addColorStop(1,"#222222");
+    ctx.fillStyle=g;ctx.fillRect(0,0,320,320);
+    ctx.fillStyle="#e63946";ctx.fillRect(40,40,90,90);
+    ctx.fillStyle="#4361ee";ctx.beginPath();ctx.arc(220,100,60,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle="#06d6a0";ctx.beginPath();ctx.moveTo(160,210);ctx.lineTo(270,300);ctx.lineTo(50,300);ctx.closePath();ctx.fill();
+    ctx.fillStyle="#f77f00";ctx.fillRect(210,200,80,80);
+    for(let i=0;i<25;i++){ctx.fillStyle=`rgba(255,255,255,${Math.random()*0.8+0.2})`;ctx.beginPath();ctx.arc(Math.random()*320,Math.random()*320,Math.random()*3+1,0,Math.PI*2);ctx.fill();}
+    const imageData=ctx.getImageData(0,0,320,320);
+    setOrigData(imageData);
+    // Also draw directly to canvas if ref already mounted
+    if(origRef.current){
+      origRef.current.width=320;origRef.current.height=320;
+      origRef.current.getContext("2d").putImageData(imageData,0,0);
+    }
+  },[]);
+
+  useEffect(()=>{
+    if(!origData||!origRef.current) return;
+    origRef.current.width=origData.width;origRef.current.height=origData.height;
+    origRef.current.getContext("2d").putImageData(origData,0,0);
+  },[origData]);
+
+  // Callback ref: draws immediately when canvas element mounts
+  const origCanvasRef = useCallback((node)=>{
+    origRef.current = node;
+    if(node && origData){
+      node.width=origData.width;
+      node.height=origData.height;
+      node.getContext("2d").putImageData(origData,0,0);
+    }
+  },[origData]);
+
+  useEffect(()=>{
+    if(!origData||showRegPanel) return;
+    try{
+      const result=processImg(origData,activeMod.id,activeTopic,params);
+      setProcData(result);
+      if(procRef.current){procRef.current.width=result.width;procRef.current.height=result.height;procRef.current.getContext("2d").putImageData(result,0,0);}
+    }catch(err){
+      console.error("processImg crash:",activeMod.id,activeTopic,err);
+      // Show error on canvas
+      if(procRef.current){
+        const c=procRef.current;c.width=320;c.height=160;
+        const ctx=c.getContext("2d");
+        ctx.fillStyle="#0a0a1a";ctx.fillRect(0,0,320,160);
+        ctx.fillStyle="#f72585";ctx.font="12px monospace";
+        ctx.fillText("⚠ Operation error: "+err.message.slice(0,40),10,80);
+      }
+    }
+  },[origData,activeMod,activeTopic,params,showRegPanel]);
+
+  const handleUpload=useCallback((e)=>{
+    const file=e.target.files?.[0];if(!file) return;
+    const reader=new FileReader();
+    reader.onload=(ev)=>{
+      const img=new Image();
+      img.onload=()=>{
+        const maxD=400,scale=Math.min(1,maxD/Math.max(img.width,img.height));
+        const w=Math.round(img.width*scale),h=Math.round(img.height*scale);
+        const c=document.createElement("canvas");c.width=w;c.height=h;
+        c.getContext("2d").drawImage(img,0,0,w,h);
+        setOrigData(c.getContext("2d").getImageData(0,0,w,h));
+      };img.src=ev.target.result;
+    };reader.readAsDataURL(file);e.target.value="";
+  },[]);
+
+  // Stop webcam on unmount
+  useEffect(()=>()=>{if(streamRef.current) streamRef.current.getTracks().forEach(t=>t.stop());},[]);
+
+  // Webcam toggle
+  const toggleWebcam=useCallback(()=>{
+    if(webcamOn){
+      if(animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      if(streamRef.current) streamRef.current.getTracks().forEach(t=>t.stop());
+      streamRef.current=null;
+      if(webcamRef.current){webcamRef.current.srcObject=null;}
+      setWebcamOn(false);setWebcamErr(null);
+      return;
+    }
+    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
+      setWebcamErr("Camera API not available. Make sure you are on localhost or HTTPS.");
+      setWebcamOn(true);
+      return;
+    }
+    navigator.mediaDevices.getUserMedia({video:true})
+      .then(stream=>{
+        streamRef.current=stream;
+        if(webcamRef.current){
+          webcamRef.current.srcObject=stream;
+          webcamRef.current.play().catch(()=>{});
+        }
+        setWebcamErr(null);
+        setWebcamOn(true);
+      })
+      .catch(err=>{
+        let msg=err.name+": "+err.message;
+        if(err.name==="NotAllowedError") msg="Permission denied. Click the camera icon in your browser address bar and allow camera access, then try again.";
+        if(err.name==="NotFoundError") msg="No camera found on this device.";
+        setWebcamErr(msg);
+        setWebcamOn(true);
+      });
+  },[webcamOn]);
+
+  // Live webcam render loop — runs every animation frame when webcam is on
+  useEffect(()=>{
+    if(!webcamOn){
+      if(animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      return;
+    }
+    const KX=[[-1,0,1],[-2,0,2],[-1,0,1]];
+    const KY=[[-1,-2,-1],[0,0,0],[1,2,1]];
+    const offscreen=document.createElement('canvas');
+    const render=()=>{
+      const video=webcamRef.current;
+      const lc=liveCanvasRef.current;
+      if(!video||!lc||!video.srcObject||video.readyState<2){animFrameRef.current=requestAnimationFrame(render);return;}
+      const W=video.videoWidth||320,H=video.videoHeight||240;
+      offscreen.width=W;offscreen.height=H;
+      lc.width=W;lc.height=H;
+      const octx=offscreen.getContext('2d');
+      octx.drawImage(video,0,0,W,H);
+      const frame=octx.getImageData(0,0,W,H);
+      const N=W*H;
+      // build grayscale
+      const gray=new Float32Array(N);
+      for(let i=0;i<N;i++) gray[i]=0.299*frame.data[i*4]+0.587*frame.data[i*4+1]+0.114*frame.data[i*4+2];
+      const out=new Uint8ClampedArray(frame.data);
+      if(liveMode==='sobel'||liveMode==='color'){
+        // Sobel gradient magnitude
+        const gx=new Float32Array(N),gy=new Float32Array(N);
+        for(let y=1;y<H-1;y++) for(let x=1;x<W-1;x++){
+          let sx=0,sy=0;
+          for(let ky=0;ky<3;ky++) for(let kx=0;kx<3;kx++){
+            const v=gray[(y+ky-1)*W+(x+kx-1)];
+            sx+=v*KX[ky][kx];sy+=v*KY[ky][kx];
+          }
+          gx[y*W+x]=sx;gy[y*W+x]=sy;
+        }
+        for(let i=0;i<N;i++){
+          const mag=Math.min(255,Math.sqrt(gx[i]*gx[i]+gy[i]*gy[i]));
+          if(liveMode==='sobel'){
+            out[i*4]=Math.round(mag);out[i*4+1]=Math.round(mag);out[i*4+2]=Math.round(mag);
+          } else {
+            // Neon color edges: map angle to hue
+            const angle=(Math.atan2(gy[i],gx[i])+Math.PI)/(2*Math.PI);
+            out[i*4]=Math.round(angle*mag);
+            out[i*4+1]=Math.round((1-angle)*mag*0.8);
+            out[i*4+2]=Math.round(mag*(0.5+angle*0.5));
+          }
+          out[i*4+3]=255;
+        }
+      }
+      // else liveMode==='capture': show raw color feed
+      lc.getContext('2d').putImageData(new ImageData(out,W,H),0,0);
+      animFrameRef.current=requestAnimationFrame(render);
+    };
+    animFrameRef.current=requestAnimationFrame(render);
+    return ()=>{if(animFrameRef.current) cancelAnimationFrame(animFrameRef.current);};
+  },[webcamOn,liveMode]);
+
+  // Handle camera file input fallback
+  const handleCamFile=useCallback((e)=>{
+    const file=e.target.files?.[0];if(!file) return;
+    const reader=new FileReader();
+    reader.onload=(ev)=>{
+      const img=new Image();
+      img.onload=()=>{
+        const c=document.createElement("canvas");c.width=320;c.height=320;
+        c.getContext("2d").drawImage(img,0,0,320,320);
+        setOrigData(c.getContext("2d").getImageData(0,0,320,320));
+      };img.src=ev.target.result;
+    };reader.readAsDataURL(file);e.target.value="";
+  },[]);
+
+  // Capture webcam frame
+  const captureWebcam=useCallback(()=>{
+    if(!webcamRef.current) return;
+    const c=document.createElement("canvas");c.width=320;c.height=320;
+    c.getContext("2d").drawImage(webcamRef.current,0,0,320,320);
+    setOrigData(c.getContext("2d").getImageData(0,0,320,320));
+  },[]);
+
+  // Diff overlay effect
+  useEffect(()=>{
+    if(!diffMode||!origData||!procData||!diffRef.current) return;
+    const c=diffRef.current;c.width=origData.width;c.height=origData.height;
+    const ctx=c.getContext("2d");
+    const diff=new Uint8ClampedArray(origData.width*origData.height*4);
+    for(let i=0;i<origData.width*origData.height;i++){
+      diff[i*4]=Math.abs(origData.data[i*4]-procData.data[i*4]);
+      diff[i*4+1]=Math.abs(origData.data[i*4+1]-procData.data[i*4+1]);
+      diff[i*4+2]=Math.abs(origData.data[i*4+2]-procData.data[i*4+2]);
+      diff[i*4+3]=255;
+    }
+    ctx.putImageData(new ImageData(diff,origData.width,origData.height),0,0);
+  },[diffMode,origData,procData]);
+
+  // Export processed image
+  const exportImage=useCallback(()=>{
+    if(!procRef.current) return;
+    const a=document.createElement("a");a.download=`${activeMod.id}_${activeTopic.replace(/\s/g,"_")}.png`;
+    a.href=procRef.current.toDataURL("image/png");a.click();
+  },[activeMod,activeTopic]);
+
+  // Quiz
+  const startQuiz=useCallback(()=>{
+    const allOps=MODULES.flatMap(m=>m.topics.map(t=>({mod:m,topic:t})));
+    const q=allOps[Math.floor(Math.random()*allOps.length)];
+    // Generate 4 answer choices
+    const correct=q.mod.label+" > "+q.topic;
+    const others=allOps.filter(o=>o.topic!==q.topic).sort(()=>Math.random()-0.5).slice(0,3).map(o=>o.mod.label+" > "+o.topic);
+    const choices=[correct,...others].sort(()=>Math.random()-0.5);
+    setQuizQ({...q,correct,choices});setQuizFeedback(null);setQuizImgUrl(null);
+  },[]);
+
+  const answerQuiz=useCallback((choice)=>{
+    if(!quizQ) return;
+    const ok=choice===quizQ.correct;
+    setQuizScore(s=>({right:s.right+(ok?1:0),wrong:s.wrong+(ok?0:1)}));
+    setQuizFeedback({ok,correct:quizQ.correct});
+    setTimeout(()=>startQuiz(),1500);
+  },[quizQ,startQuiz]);
+
+  // Generate quiz preview image when question changes
+  useEffect(()=>{
+    if(!quizQ) return;
+    const src=origData||{width:160,height:160,data:new Uint8ClampedArray(160*160*4).fill(180)};
+    try{
+      const tmp=processImg(src,quizQ.mod.id,quizQ.topic,{gamma:1,thresh:128,plane:7,d0:40,n:2,sigma:20,k:0.05,angle:15,scale:1.2,tx:20,ty:20,wavThresh:20});
+      const c=document.createElement("canvas");c.width=tmp.width;c.height=tmp.height;
+      c.getContext("2d").putImageData(tmp,0,0);
+      setQuizImgUrl(c.toDataURL());
+    }catch(e){setQuizImgUrl(null);}
+  },[quizQ,origData]);
+
+  const selMod=(mod)=>{setActiveMod(mod);setActiveTopic(mod.topics[0]);setTheory(null);};
+  const curParams=PARAM_MAP[activeTopic]||[];
+
+  const isMob = typeof window!=='undefined' && window.innerWidth<=768;
+
+  return(
+    <div style={{display:"flex",height:"100vh",background:"#070710",fontFamily:"'Share Tech Mono','Courier New',monospace",color:"#dde0ff",overflow:"hidden"}}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@600;900&family=Share+Tech+Mono&display=swap');
+        *{box-sizing:border-box;}
+        ::-webkit-scrollbar{width:3px;} ::-webkit-scrollbar-track{background:#050510;} ::-webkit-scrollbar-thumb{background:#222244;border-radius:2px;}
+        .mb{background:none;border:none;cursor:pointer;width:100%;text-align:left;padding:9px 14px;transition:all 0.15s;border-left:3px solid transparent;font-family:'Share Tech Mono',monospace;}
+        .mb:hover{background:rgba(255,255,255,0.04);}
+        .mb.a{background:rgba(255,255,255,0.07);border-left-color:var(--c);}
+        .ch{display:inline-block;padding:4px 9px;margin:2px;border-radius:2px;cursor:pointer;font-size:10px;letter-spacing:0.3px;transition:all 0.12s;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.02);color:rgba(255,255,255,0.45);}
+        .ch:hover{background:rgba(255,255,255,0.07);color:rgba(255,255,255,0.8);}
+        .ch.a{background:var(--cb);border-color:var(--c);color:#fff;}
+        .sl{-webkit-appearance:none;appearance:none;height:3px;background:rgba(255,255,255,0.1);border-radius:2px;outline:none;cursor:pointer;width:100%;}
+        .sl::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;background:var(--c,#4cc9f0);border-radius:50%;cursor:pointer;box-shadow:0 0 5px var(--c,#4cc9f0);}
+        .ub{background:rgba(76,201,240,0.07);border:1px solid rgba(76,201,240,0.3);color:#4cc9f0;cursor:pointer;padding:8px 16px;font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:2px;border-radius:2px;transition:all 0.2s;}
+        .ub:hover{background:rgba(76,201,240,0.18);border-color:#4cc9f0;}
+        .tb{background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.07);border-radius:3px;padding:11px;font-size:11px;line-height:1.9;color:rgba(255,255,255,0.6);margin-top:6px;}
+        .cw{background:#06060e;border:1px solid rgba(255,255,255,0.06);border-radius:4px;overflow:hidden;display:flex;align-items:center;justify-content:center;min-height:120px;}
+        canvas{max-width:100%;max-height:300px;display:block;}
+        .lbl{font-size:9px;letter-spacing:3px;color:rgba(255,255,255,0.22);text-transform:uppercase;margin-bottom:6px;margin-top:12px;}
+        @keyframes fu{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+        .fu{animation:fu 0.25s ease forwards;}
+        .tr{cursor:pointer;padding:4px 0;display:flex;align-items:center;gap:6px;font-size:11px;transition:color 0.15s;}
+        .tr:hover{color:white;}
+        .ic{background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.07);border-radius:3px;padding:10px 12px;}
+
+        /* ── MOBILE RESPONSIVE ─────────────────────────────────────────── */
+        .mob-nav{display:none;}
+        .mob-overlay{display:none;}
+
+        @media(max-width:768px){
+          /* Hide desktop sidebar, left panel and desktop tool buttons */
+          .desktop-sidebar{display:none !important;}
+          .desktop-left{display:none !important;}
+          .desktop-tools{display:none !important;}
+
+          /* Bottom navigation bar */
+          .mob-nav{
+            display:flex !important;
+            position:fixed;bottom:0;left:0;right:0;
+            height:60px;
+            background:#06060e;
+            border-top:1px solid rgba(255,255,255,0.15);
+            z-index:9999;
+            align-items:stretch;
+            padding:0 4px;
+            box-shadow:0 -4px 20px rgba(0,0,0,0.6);
+          }
+          .mob-nav-btn{
+            flex:1;background:none;border:none;
+            cursor:pointer;
+            display:flex;flex-direction:column;
+            align-items:center;justify-content:center;
+            gap:3px;
+            font-size:7.5px;letter-spacing:0.8px;
+            color:rgba(255,255,255,0.3);
+            font-family:'Share Tech Mono',monospace;
+            padding:6px 2px;
+            transition:all 0.15s;
+            border-top:2px solid transparent;
+          }
+          .mob-nav-btn.a{color:var(--mc,#4cc9f0);border-top-color:var(--mc,#4cc9f0);}
+          .mob-nav-btn span.ico{font-size:20px;line-height:1;}
+
+          /* Full-screen overlays for modules and ops panels */
+          .mob-overlay{
+            display:none;
+            position:fixed;top:54px;left:0;right:0;bottom:60px;
+            background:#06060e;
+            z-index:500;
+            overflow-y:auto;
+            padding:14px 14px 20px;
+            animation:fu 0.18s ease;
+            border-top:1px solid rgba(255,255,255,0.06);
+          }
+          .mob-overlay.open{display:block;}
+
+          /* Header adjustments */
+          .mob-header{
+            padding:8px 12px !important;
+            flex-wrap:wrap;
+            gap:6px !important;
+            padding-bottom:8px !important;
+          }
+          .mob-title-block{flex:1;min-width:0;}
+          .mob-tool-row{
+            display:flex;flex-wrap:wrap;
+            gap:5px;width:100%;
+            margin-top:2px;
+          }
+          .mob-tool-row .ub{
+            padding:7px 10px !important;
+            font-size:10px !important;
+            letter-spacing:1px !important;
+            flex:1;min-width:70px;
+            text-align:center;
+          }
+
+          /* Main body needs bottom padding for nav bar */
+          .mob-body{padding-bottom:68px !important;overflow-y:auto;}
+
+          /* Canvas sizing on mobile */
+          canvas{max-height:180px !important;}
+          .cw{min-height:100px;}
+
+          /* Bigger touch targets for chips */
+          .ch{
+            font-size:12px !important;
+            padding:8px 13px !important;
+            margin:4px !important;
+          }
+
+          /* Bigger sliders for touch */
+          .sl{height:6px !important;}
+          .sl::-webkit-slider-thumb{
+            width:22px !important;
+            height:22px !important;
+          }
+
+          /* Canvas grid: 2 columns on tablet, 1 on phone */
+          .canvas-grid{
+            grid-template-columns:1fr 1fr !important;
+            gap:8px !important;
+          }
+        }
+
+        @media(max-width:480px){
+          /* Single column canvas on small phones */
+          .canvas-grid{grid-template-columns:1fr !important;}
+          canvas{max-height:220px !important;}
+          .mob-nav-btn{font-size:7px;}
+          .mob-nav-btn span.ico{font-size:17px;}
+        }
+
+        @media(min-width:769px){
+          /* Desktop: hide mobile elements */
+          .mob-nav{display:none !important;}
+          .mob-overlay{display:none !important;}
+          .mob-tool-row{display:none !important;}
+          .desktop-tools{display:flex !important;}
+          .canvas-grid{grid-template-columns:1fr 1fr;}
+        }
+      `}</style>
+
+      {/* QUIZ OVERLAY */}
+      {quizMode&&<div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.88)",zIndex:999,display:"flex",alignItems:"center",justifyContent:"center"}}>
+        <div style={{background:"#0a0a1a",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"32px",maxWidth:560,width:"90%"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+            <div style={{fontSize:14,letterSpacing:3,color:"rgba(255,255,255,0.4)"}}>QUIZ MODE</div>
+            <div style={{display:"flex",gap:16}}>
+              <span style={{color:"#06d6a0",fontSize:13}}>✓ {quizScore.right}</span>
+              <span style={{color:"#f72585",fontSize:13}}>✗ {quizScore.wrong}</span>
+              <button style={{background:"none",border:"1px solid rgba(255,255,255,0.2)",color:"rgba(255,255,255,0.5)",padding:"4px 12px",cursor:"pointer",borderRadius:3,fontFamily:"monospace"}} onClick={()=>{setQuizMode(false);setQuizQ(null);}}>EXIT</button>
+            </div>
+          </div>
+          {quizQ&&<>
+            <div style={{marginBottom:20}}>
+              <div style={{fontSize:10,letterSpacing:2,color:"rgba(255,255,255,0.3)",marginBottom:8}}>IDENTIFY THIS MODULE & OPERATION:</div>
+              <div style={{background:"#06060e",border:"1px solid rgba(255,255,255,0.08)",borderRadius:6,padding:16,textAlign:"center"}}>
+                {quizImgUrl?<img src={quizImgUrl} style={{maxWidth:240,maxHeight:160,borderRadius:4}}/>:<div style={{color:"rgba(255,255,255,0.2)",fontSize:11}}>Loading...</div>}
+              </div>
+            </div>
+            {quizFeedback&&<div style={{marginBottom:16,padding:"10px 16px",borderRadius:4,background:quizFeedback.ok?"rgba(6,214,160,0.12)":"rgba(247,37,133,0.12)",border:`1px solid ${quizFeedback.ok?"#06d6a0":"#f72585"}`,color:quizFeedback.ok?"#06d6a0":"#f72585",fontSize:12}}>
+              {quizFeedback.ok?"Correct!":"Wrong — correct: "+quizFeedback.correct}
+            </div>}
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+              {quizQ.choices.map(c=><button key={c} onClick={()=>answerQuiz(c)} style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.7)",padding:"10px 14px",cursor:"pointer",borderRadius:4,fontFamily:"monospace",fontSize:11,textAlign:"left",transition:"all 0.15s"}}>{c}</button>)}
+            </div>
+          </>}
+          {!quizQ&&<button onClick={startQuiz} style={{width:"100%",padding:"14px",background:"rgba(67,97,238,0.15)",border:"1px solid #4361ee",color:"#4361ee",cursor:"pointer",borderRadius:4,fontFamily:"monospace",fontSize:13,letterSpacing:2}}>START QUIZ</button>}
+        </div>
+      </div>}
+
+      {/* SIDEBAR */}
+      <div className="desktop-sidebar" style={{width:sidebar?248:50,minWidth:sidebar?248:50,background:"#06060e",borderRight:"1px solid rgba(255,255,255,0.05)",display:"flex",flexDirection:"column",transition:"width 0.2s",overflow:"hidden"}}>
+        <div style={{padding:"13px 10px",borderBottom:"1px solid rgba(255,255,255,0.05)",display:"flex",alignItems:"center",gap:8}}>
+          <span style={{fontSize:18,flexShrink:0}}>🧠</span>
+          {sidebar&&<div style={{fontFamily:"'Orbitron',monospace",fontSize:9.5,fontWeight:600,letterSpacing:2,color:"#4cc9f0",lineHeight:1.4}}>IMAGE<br/>PROCESSING<br/><span style={{fontSize:8,color:"rgba(76,201,240,0.35)"}}>COMPLETE TOOLKIT</span></div>}
+          <button onClick={()=>setSidebar(v=>!v)} style={{marginLeft:"auto",background:"none",border:"none",color:"rgba(255,255,255,0.25)",cursor:"pointer",fontSize:13,flexShrink:0,padding:4}}>{sidebar?"<<":">>"}</button>
+        </div>
+        <div style={{flex:1,overflowY:"auto",padding:"5px 0"}}>
+          {MODULES.map(mod=>(
+            <button key={mod.id} className={`mb${activeMod.id===mod.id?" a":""}`} style={{"--c":mod.color}} onClick={()=>selMod(mod)}>
+              <div style={{display:"flex",alignItems:"center",gap:9}}>
+                <span style={{fontSize:15,flexShrink:0}}>{mod.icon}</span>
+                {sidebar&&<span style={{fontSize:10,color:activeMod.id===mod.id?mod.color:"rgba(255,255,255,0.42)",letterSpacing:0.3,lineHeight:1.35}}>{mod.label}</span>}
+              </div>
+            </button>
+          ))}
+        </div>
+        {sidebar&&<div style={{padding:"8px 14px",borderTop:"1px solid rgba(255,255,255,0.05)",fontSize:9,color:"rgba(255,255,255,0.12)",letterSpacing:1}}>{MODULES.length} MODULES * {MODULES.reduce((a,m)=>a+m.topics.length,0)} OPERATIONS</div>}
+      </div>
+
+      {/* MAIN */}
+      <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+        {/* Header */}
+        <div style={{padding:"11px 16px",borderBottom:"1px solid rgba(255,255,255,0.05)",display:"flex",alignItems:"center",gap:12,background:"#06060e",flexShrink:0}} className="mob-header">
+          <span style={{fontSize:20}}>{activeMod.icon}</span>
+          <div style={{flex:1}}>
+            <div style={{fontFamily:"'Orbitron',monospace",fontSize:13,fontWeight:600,color:activeMod.color,letterSpacing:1}}>{activeMod.label}</div>
+            <div style={{fontSize:10,color:"rgba(255,255,255,0.28)",marginTop:1}}>{MODULES.length} modules · {activeMod.topics.length} ops</div>
+          </div>
+          {!showRegPanel&&<div className="desktop-tools" style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+            <label htmlFor="mainUpload" className="ub" style={{cursor:"pointer"}}>⬆ UPLOAD</label>
+            <input id="mainUpload" ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={handleUpload}/>
+            <button className="ub" onClick={toggleWebcam} style={{padding:"7px 10px",fontSize:10,background:webcamOn?"rgba(247,37,133,0.15)":"rgba(76,201,240,0.07)",borderColor:webcamOn?"#f72585":"rgba(76,201,240,0.3)",color:webcamOn?"#f72585":"#4cc9f0"}}>{webcamOn?"🔴 STOP":"📷 CAM"}</button>
+            <button className="ub" onClick={exportImage} style={{padding:"7px 10px",fontSize:10,borderColor:"rgba(6,214,160,0.3)",color:"#06d6a0",background:"rgba(6,214,160,0.07)"}}>💾 SAVE</button>
+            <button className="ub" onClick={()=>setDiffMode(d=>!d)} style={{padding:"7px 10px",fontSize:10,borderColor:diffMode?"#f77f00":"rgba(247,127,0,0.3)",color:diffMode?"#f77f00":"rgba(247,127,0,0.6)",background:diffMode?"rgba(247,127,0,0.12)":"transparent"}}>🔀 {diffMode?"DIFF ON":"DIFF"}</button>
+            <button className="ub" onClick={()=>{setQuizMode(true);startQuiz();}} style={{padding:"7px 10px",fontSize:10,borderColor:"rgba(67,97,238,0.4)",color:"#4361ee",background:"rgba(67,97,238,0.07)"}}>🧩 QUIZ</button>
+          </div>}
+          {/* Mobile tool row - only shows on mobile */}
+          {!showRegPanel&&<div className="mob-tool-row">
+            <label htmlFor="mobUpload" className="ub" style={{cursor:"pointer",textAlign:"center",flex:1}}>⬆ IMG</label>
+            <input id="mobUpload" type="file" accept="image/*" style={{display:"none"}} onChange={handleUpload}/>
+            <button className="ub" onClick={toggleWebcam} style={{flex:1,background:webcamOn?"rgba(247,37,133,0.15)":undefined,borderColor:webcamOn?"#f72585":undefined,color:webcamOn?"#f72585":undefined}}>{webcamOn?"🔴 OFF":"📷 CAM"}</button>
+            <button className="ub" onClick={exportImage} style={{flex:1,borderColor:"rgba(6,214,160,0.3)",color:"#06d6a0",background:"rgba(6,214,160,0.07)"}}>💾</button>
+            <button className="ub" onClick={()=>setDiffMode(d=>!d)} style={{flex:1,borderColor:diffMode?"#f77f00":"rgba(247,127,0,0.3)",color:diffMode?"#f77f00":"rgba(247,127,0,0.6)",background:diffMode?"rgba(247,127,0,0.12)":"transparent"}}>🔀</button>
+            <button className="ub" onClick={()=>{setQuizMode(true);startQuiz();}} style={{flex:1,borderColor:"rgba(67,97,238,0.4)",color:"#4361ee",background:"rgba(67,97,238,0.07)"}}>🧩</button>
+          </div>}
+        </div>
+
+        {/* Body */}
+        <div className="mob-body" style={{flex:1,display:"flex",overflow:"hidden"}}>
+          {/* LEFT: topics + params + theory */}
+          <div className="desktop-left" style={{width:260,minWidth:260,borderRight:"1px solid rgba(255,255,255,0.05)",padding:"12px",overflowY:"auto",background:"#070713",flexShrink:0}}>
+            <div className="lbl" style={{marginTop:0}}>Operations</div>
+            <div>{activeMod.topics.map(t=>(
+              <span key={t} className={`ch${activeTopic===t?" a":""}`}
+                style={{"--c":activeMod.color,"--cb":activeMod.color+"1a"}}
+                onClick={()=>setActiveTopic(t)}>{t}</span>
+            ))}</div>
+
+            {curParams.length>0&&<>
+              <div className="lbl">Parameters</div>
+              {curParams.map(p=>(
+                <div key={p.key} style={{marginBottom:13}}>
+                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:5,fontSize:11}}>
+                    <span style={{color:"rgba(255,255,255,0.38)"}}>{p.label}</span>
+                    <span style={{color:activeMod.color,fontWeight:"bold"}}>{params[p.key]}</span>
+                  </div>
+                  <input type="range" className="sl" style={{"--c":activeMod.color}}
+                    min={p.min} max={p.max} step={p.step} value={params[p.key]}
+                    onChange={e=>setParams(prev=>({...prev,[p.key]:parseFloat(e.target.value)}))}/>
+                  <div style={{display:"flex",justifyContent:"space-between",fontSize:9,color:"rgba(255,255,255,0.15)",marginTop:2}}>
+                    <span>{p.min}</span><span>{p.max}</span>
+                  </div>
+                </div>
+              ))}
+            </>}
+
+            <div className="lbl">Theory</div>
+            {Object.entries(activeMod.theory||{}).map(([k,v])=>(
+              <div key={k} style={{marginBottom:3}}>
+                <div className="tr" style={{color:theory===k?activeMod.color:"rgba(255,255,255,0.4)"}} onClick={()=>setTheory(theory===k?null:k)}>
+                  <span style={{fontSize:9}}>{theory===k?"v":">>"}</span><span>{k}</span>
+                </div>
+                {theory===k&&<div className="tb fu">{v}</div>}
+              </div>
+            ))}
+          </div>
+
+          {/* RIGHT: main content */}
+          <div style={{flex:1,padding:"14px",overflowY:"auto",display:"flex",flexDirection:"column",gap:12}} className="fu mob-body">
+
+            {showRegPanel ? (
+              <ErrorBoundary key={activeMod.id+activeTopic}>
+                <RegistrationPanel color={activeMod.color} activeTopic={activeTopic}/>
               </ErrorBoundary>
             ) : (
               <>
