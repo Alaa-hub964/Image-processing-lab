@@ -1015,190 +1015,439 @@ class ErrorBoundary extends React.Component{
   }
 }
 
-function RegistrationPanel({color}){
+function RegistrationPanel({color, activeTopic}){
   const [img1,setImg1]=useState(null);
   const [img2,setImg2]=useState(null);
-  const [step,setStep]=useState("upload"); // upload | detect | match | align
-  const [matchLines,setMatchLines]=useState([]);
-  const [alignedData,setAlignedData]=useState(null);
-  const [diffData,setDiffData]=useState(null);
-  const [stats,setStats]=useState(null);
-  const canvas1=useRef(null),canvas2=useRef(null),matchCanvas=useRef(null),alignCanvas=useRef(null),diffCanvas=useRef(null);
-  const file1=useRef(null),file2=useRef(null);
+  const [busy,setBusy]=useState(false);
+  const [log,setLog]=useState("");
+  const [computed,setComputed]=useState(null);
+  const [cvReady,setCvReady]=useState(!!window.cv);
+  const c1=useRef(null),c2=useRef(null);
+  const cResult=useRef(null);
+  const cH1=useRef(null),cH2=useRef(null),cH3=useRef(null);
 
-  const loadImg=(file,setFn,canvasRef)=>{
-    const reader=new FileReader();
-    reader.onload=(e)=>{
+  // ── Load OpenCV.js ──────────────────────────────────────────────────────────
+  useEffect(()=>{
+    if(window.cv){setCvReady(true);return;}
+    const script=document.createElement("script");
+    script.src="https://docs.opencv.org/4.8.0/opencv.js";
+    script.async=true;
+    script.onload=()=>{
+      // cv may not be ready immediately
+      const check=setInterval(()=>{
+        if(window.cv&&window.cv.Mat){
+          clearInterval(check);
+          setCvReady(true);
+          setLog("OpenCV.js loaded ✓");
+        }
+      },100);
+    };
+    script.onerror=()=>setLog("Failed to load OpenCV.js — check internet connection");
+    document.head.appendChild(script);
+  },[]);
+
+  // ── Load image ──────────────────────────────────────────────────────────────
+  const loadImg=(file,setFn,ref)=>{
+    const r=new FileReader();
+    r.onload=e=>{
       const img=new Image();
       img.onload=()=>{
-        const maxD=280,scale=Math.min(1,maxD/Math.max(img.width,img.height));
-        const w=Math.round(img.width*scale),h=Math.round(img.height*scale);
-        const c=document.createElement("canvas");c.width=w;c.height=h;
-        c.getContext("2d").drawImage(img,0,0,w,h);
-        const id=c.getContext("2d").getImageData(0,0,w,h);
-        setFn(id);
-        if(canvasRef.current){canvasRef.current.width=w;canvasRef.current.height=h;canvasRef.current.getContext("2d").putImageData(id,0,0);}
+        const MAX=500,sc=Math.min(1,MAX/Math.max(img.width,img.height));
+        const W=Math.round(img.width*sc),H=Math.round(img.height*sc);
+        const cv2=document.createElement("canvas");cv2.width=W;cv2.height=H;
+        cv2.getContext("2d").drawImage(img,0,0,W,H);
+        const id=cv2.getContext("2d").getImageData(0,0,W,H);
+        setFn({data:new Uint8ClampedArray(id.data),W,H,id,canvas:cv2});
+        if(ref.current){ref.current.width=W;ref.current.height=H;ref.current.getContext("2d").putImageData(id,0,0);}
       };img.src=e.target.result;
-    };reader.readAsDataURL(file);
+    };r.readAsDataURL(file);
   };
 
-  const runDetect=()=>{
-    if(!img1||!img2) return;
-    if(canvas1.current){canvas1.current.width=img1.width;canvas1.current.height=img1.height;canvas1.current.getContext("2d").putImageData(img1,0,0);}
-    if(canvas2.current){canvas2.current.width=img2.width;canvas2.current.height=img2.height;canvas2.current.getContext("2d").putImageData(img2,0,0);}
-    // Draw harris corners on canvases
-    const gray1=new Float32Array(img1.width*img1.height);for(let i=0;i<gray1.length;i++) gray1[i]=0.299*img1.data[i*4]+0.587*img1.data[i*4+1]+0.114*img1.data[i*4+2];
-    const gray2=new Float32Array(img2.width*img2.height);for(let i=0;i<gray2.length;i++) gray2[i]=0.299*img2.data[i*4]+0.587*img2.data[i*4+1]+0.114*img2.data[i*4+2];
-    const kps1=detectHarrisCorners(gray1,img1.width,img1.height,60);
-    const kps2=detectHarrisCorners(gray2,img2.width,img2.height,60);
-    const ctx1=canvas1.current?.getContext("2d"),ctx2=canvas2.current?.getContext("2d");
-    if(ctx1){kps1.forEach(({x,y})=>{ctx1.beginPath();ctx1.arc(x,y,3,0,Math.PI*2);ctx1.fillStyle="#f72585";ctx1.fill();ctx1.strokeStyle="white";ctx1.lineWidth=0.5;ctx1.stroke();});}
-    if(ctx2){kps2.forEach(({x,y})=>{ctx2.beginPath();ctx2.arc(x,y,3,0,Math.PI*2);ctx2.fillStyle="#06d6a0";ctx2.fill();ctx2.strokeStyle="white";ctx2.lineWidth=0.5;ctx2.stroke();});}
-    setStats({kps1:kps1.length,kps2:kps2.length});
-    setStep("detect");
+  // ── Draw histogram ──────────────────────────────────────────────────────────
+  const drawHist=(ref,data,W,H,title,validOnly=false)=>{
+    if(!ref.current) return;
+    const cv2=ref.current,cw=280,ch=130;
+    cv2.width=cw; cv2.height=ch;
+    const ctx=cv2.getContext("2d");
+    ctx.fillStyle="#06060e"; ctx.fillRect(0,0,cw,ch);
+    ctx.font="10px monospace"; ctx.fillStyle="rgba(255,255,255,0.3)";
+    ctx.fillText(title,6,13);
+    [["#ff4d6d",0],["#06d6a0",1],["#4cc9f0",2]].forEach(([col,ch2])=>{
+      const hist=new Array(256).fill(0);
+      for(let p=0;p<W*H;p++){
+        if(validOnly&&data[p*4+3]===0) continue;
+        hist[data[p*4+ch2]]++;
+      }
+      const mx=Math.max(...hist)||1;
+      ctx.beginPath(); ctx.strokeStyle=col; ctx.lineWidth=1.3; ctx.globalAlpha=0.9;
+      for(let x=0;x<256;x++){
+        const bx=5+x*(cw-10)/256, by=ch-10-hist[x]/mx*(ch-25);
+        x===0?ctx.moveTo(bx,by):ctx.lineTo(bx,by);
+      }
+      ctx.stroke(); ctx.globalAlpha=1;
+    });
   };
 
-  const runMatch=()=>{
-    if(!img1||!img2) return;
-    const gray1=new Float32Array(img1.width*img1.height);for(let i=0;i<gray1.length;i++) gray1[i]=0.299*img1.data[i*4]+0.587*img1.data[i*4+1]+0.114*img1.data[i*4+2];
-    const gray2=new Float32Array(img2.width*img2.height);for(let i=0;i<gray2.length;i++) gray2[i]=0.299*img2.data[i*4]+0.587*img2.data[i*4+1]+0.114*img2.data[i*4+2];
-    const kps1=detectHarrisCorners(gray1,img1.width,img1.height,50);
-    const kps2=detectHarrisCorners(gray2,img2.width,img2.height,50);
-    const d1=kps1.map(({x,y})=>patchDescriptor(gray1,img1.width,img1.height,x,y));
-    const d2=kps2.map(({x,y})=>patchDescriptor(gray2,img2.width,img2.height,x,y));
-    const matches=matchKeypoints(kps1,d1,kps2,d2);
-    setMatchLines(matches.map(({i,j})=>({x1:kps1[i].x,y1:kps1[i].y,x2:kps2[j].x,y2:kps2[j].y})));
-    setStats(s=>({...s,matches:matches.length,kps1:kps1.length,kps2:kps2.length}));
-    // Draw match canvas
+  // ── RUN REGISTRATION using OpenCV.js ───────────────────────────────────────
+  const runAll=()=>{
+    if(!img1||!img2){alert("Please upload both images first.");return;}
+    if(!cvReady){alert("OpenCV.js is still loading. Please wait a moment.");return;}
+    setBusy(true); setLog("Step 1/4: Loading images into OpenCV...");
     setTimeout(()=>{
-      const mc=matchCanvas.current;if(!mc) return;
-      const W1=img1.width,H1=img1.height,W2=img2.width,H2=img2.height;
-      mc.width=W1+W2+10;mc.height=Math.max(H1,H2);
-      const ctx=mc.getContext("2d");
-      ctx.fillStyle="#06060e";ctx.fillRect(0,0,mc.width,mc.height);
-      ctx.putImageData(img1,0,(mc.height-H1)/2);
-      ctx.putImageData(img2,W1+10,(mc.height-H2)/2);
-      // Draw match lines
-      matches.slice(0,30).forEach(({i,j},idx)=>{
-        const hue=(idx/30)*300;
-        ctx.beginPath();ctx.moveTo(kps1[i].x,(mc.height-H1)/2+kps1[i].y);ctx.lineTo(W1+10+kps2[j].x,(mc.height-H2)/2+kps2[j].y);
-        ctx.strokeStyle=`hsl(${hue},90%,60%)`;ctx.lineWidth=0.8;ctx.globalAlpha=0.7;ctx.stroke();ctx.globalAlpha=1;
-        ctx.beginPath();ctx.arc(kps1[i].x,(mc.height-H1)/2+kps1[i].y,3,0,Math.PI*2);ctx.fillStyle=`hsl(${hue},90%,60%)`;ctx.fill();
-        ctx.beginPath();ctx.arc(W1+10+kps2[j].x,(mc.height-H2)/2+kps2[j].y,3,0,Math.PI*2);ctx.fillStyle=`hsl(${hue},90%,60%)`;ctx.fill();
-      });
-    },50);
-    setStep("match");
-  };
+      try{
+        const cv=window.cv;
+        // Read images from canvases
+        const src1=cv.imread(img1.canvas);
+        const src2=cv.imread(img2.canvas);
+        // Convert to grayscale
+        const gray1=new cv.Mat(),gray2=new cv.Mat();
+        cv.cvtColor(src1,gray1,cv.COLOR_RGBA2GRAY);
+        cv.cvtColor(src2,gray2,cv.COLOR_RGBA2GRAY);
 
-  const runAlign=()=>{
-    if(!img1||!img2) return;
-    const gray1=new Float32Array(img1.width*img1.height);for(let i=0;i<gray1.length;i++) gray1[i]=0.299*img1.data[i*4]+0.587*img1.data[i*4+1]+0.114*img1.data[i*4+2];
-    const gray2=new Float32Array(img2.width*img2.height);for(let i=0;i<gray2.length;i++) gray2[i]=0.299*img2.data[i*4]+0.587*img2.data[i*4+1]+0.114*img2.data[i*4+2];
-    const kps1=detectHarrisCorners(gray1,img1.width,img1.height,50);
-    const kps2=detectHarrisCorners(gray2,img2.width,img2.height,50);
-    const d1=kps1.map(({x,y})=>patchDescriptor(gray1,img1.width,img1.height,x,y));
-    const d2=kps2.map(({x,y})=>patchDescriptor(gray2,img2.width,img2.height,x,y));
-    const matches=matchKeypoints(kps1,d1,kps2,d2);
-    const src=matches.map(({i})=>[kps1[i].x,kps1[i].y]);
-    const dst=matches.map(({j})=>[kps2[j].x,kps2[j].y]);
-    const H_mat=computeHomography(src,dst)||[[1,0,0],[0,1,0],[0,0,1]];
-    const warped=warpImage({data:img2.data,width:img2.width,height:img2.height},H_mat,img1.width,img1.height);
-    // Overlay: 60% img1 + 40% warped
-    const overlay=new Uint8ClampedArray(img1.width*img1.height*4);
-    for(let i=0;i<img1.width*img1.height;i++){
-      overlay[i*4]=Math.round(img1.data[i*4]*0.5+warped[i*4]*0.5);
-      overlay[i*4+1]=Math.round(img1.data[i*4+1]*0.5+warped[i*4+1]*0.5);
-      overlay[i*4+2]=Math.round(img1.data[i*4+2]*0.5+warped[i*4+2]*0.5);
-      overlay[i*4+3]=255;
-    }
-    const alignId=new ImageData(overlay,img1.width,img1.height);
-    setAlignedData(alignId);
-    // Diff map
-    const diff=new Uint8ClampedArray(img1.width*img1.height*4);
-    for(let i=0;i<img1.width*img1.height;i++){
-      const d=Math.abs(img1.data[i*4]-warped[i*4]);
-      diff[i*4]=Math.min(255,d*3);diff[i*4+1]=Math.round(255-d*2);diff[i*4+2]=0;diff[i*4+3]=255;
-    }
-    const diffId=new ImageData(diff,img1.width,img1.height);
-    setDiffData(diffId);
-    let mse=0;for(let i=0;i<img1.width*img1.height;i++){mse+=((img1.data[i*4]-warped[i*4])*(img1.data[i*4]-warped[i*4]));}mse/=img1.width*img1.height;
-    const psnr=10*Math.log10((255*255)/(mse||1));
-    setStats(s=>({...s,matches:matches.length,tx:H_mat[0][2].toFixed(1),ty:H_mat[1][2].toFixed(1),psnr:psnr.toFixed(1)}));
-    setTimeout(()=>{
-      if(alignCanvas.current){alignCanvas.current.width=img1.width;alignCanvas.current.height=img1.height;alignCanvas.current.getContext("2d").putImageData(alignId,0,0);}
-      if(diffCanvas.current){diffCanvas.current.width=img1.width;diffCanvas.current.height=img1.height;diffCanvas.current.getContext("2d").putImageData(diffId,0,0);}
+        setLog("Step 2/4: Detecting SIFT features...");
+        setTimeout(()=>{
+          try{
+            // Use SIFT detector
+            const sift=cv.SIFT_create(5000);
+            const kps1=new cv.KeyPointVector(),kps2=new cv.KeyPointVector();
+            const ds1=new cv.Mat(),ds2=new cv.Mat();
+            const mask=new cv.Mat();
+            sift.detectAndCompute(gray1,mask,kps1,ds1);
+            sift.detectAndCompute(gray2,mask,kps2,ds2);
+
+            setLog(`Step 3/4: FLANN matching (${kps1.size()}+${kps2.size()} KP)...`);
+            setTimeout(()=>{
+              try{
+                // FLANN based matcher
+                const indexParams=new cv.flann_Index_Params();
+                const searchParams=new cv.flann_Search_Params(50);
+                const flann=new cv.FlannBasedMatcher(indexParams,searchParams);
+                const matches=new cv.DMatchVectorVector();
+                flann.knnMatch(ds1,ds2,matches,2);
+
+                // Lowe's ratio test
+                const goodMatches=new cv.DMatchVector();
+                for(let i=0;i<matches.size();i++){
+                  const m=matches.get(i).get(0),n=matches.get(i).get(1);
+                  if(m.distance<0.7*n.distance) goodMatches.push_back(m);
+                }
+
+                setLog(`Step 4/4: RANSAC homography (${goodMatches.size()} good matches)...`);
+                setTimeout(()=>{
+                  try{
+                    // Get point arrays
+                    const pts1=[],pts2=[];
+                    for(let i=0;i<goodMatches.size();i++){
+                      const m=goodMatches.get(i);
+                      const kp1=kps1.get(m.queryIdx),kp2=kps2.get(m.trainIdx);
+                      pts1.push(kp1.pt.x,kp1.pt.y);
+                      pts2.push(kp2.pt.x,kp2.pt.y);
+                    }
+                    const pt1Mat=cv.matFromArray(goodMatches.size(),1,cv.CV_32FC2,pts1);
+                    const pt2Mat=cv.matFromArray(goodMatches.size(),1,cv.CV_32FC2,pts2);
+                    const inlierMask=new cv.Mat();
+                    const H=cv.findHomography(pt1Mat,pt2Mat,cv.RANSAC,5,inlierMask);
+                    const inliers=cv.countNonZero(inlierMask);
+
+                    // Warp
+                    const dsize=new cv.Size(img2.W,img2.H);
+                    const warped=new cv.Mat();
+                    cv.warpPerspective(src1,warped,H,dsize);
+
+                    // Convert warped to ImageData
+                    const warpedRGBA=new cv.Mat();
+                    cv.cvtColor(warped,warpedRGBA,cv.COLOR_RGBA2RGBA);
+                    const warpedData=new Uint8ClampedArray(warpedRGBA.data);
+
+                    // Draw match image (for Keypoint Matching view)
+                    const matchImg=new cv.Mat();
+                    const matchMask=new cv.Mat();
+                    cv.drawMatches(src1,kps1,src2,kps2,goodMatches,matchImg,
+                      new cv.Scalar(0,255,170,255),
+                      new cv.Scalar(255,77,109,255),matchMask,
+                      cv.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS);
+
+                    // Convert matchImg to canvas ImageData
+                    const matchCanvas2=document.createElement("canvas");
+                    cv.imshow(matchCanvas2,matchImg);
+                    const matchImgData=matchCanvas2.getContext("2d").getImageData(0,0,matchCanvas2.width,matchCanvas2.height);
+
+                    // Draw kp images for Feature Detection
+                    const kpImg1=new cv.Mat(),kpImg2=new cv.Mat();
+                    cv.drawKeypoints(src1,kps1,kpImg1,new cv.Scalar(255,77,109,255),cv.DrawMatchesFlags_DEFAULT);
+                    cv.drawKeypoints(src2,kps2,kpImg2,new cv.Scalar(6,214,160,255),cv.DrawMatchesFlags_DEFAULT);
+                    const kpCanvas1=document.createElement("canvas"),kpCanvas2=document.createElement("canvas");
+                    cv.imshow(kpCanvas1,kpImg1); cv.imshow(kpCanvas2,kpImg2);
+
+                    // Overlay blend
+                    const overlay=new cv.Mat();
+                    cv.addWeighted(warped,0.5,src2,0.5,0,overlay);
+                    const ovCanvas=document.createElement("canvas");
+                    cv.imshow(ovCanvas,overlay);
+                    const ovData=new Uint8ClampedArray(ovCanvas.getContext("2d").getImageData(0,0,ovCanvas.width,ovCanvas.height).data);
+
+                    // Difference map
+                    const diff=new cv.Mat(),absdiff=new cv.Mat();
+                    cv.absdiff(warped,src2,diff);
+                    // Colorize difference
+                    const diffGray=new cv.Mat(),diffColor=new cv.Mat();
+                    cv.cvtColor(diff,diffGray,cv.COLOR_RGBA2GRAY);
+                    cv.applyColorMap(diffGray,diffColor,cv.COLORMAP_JET);
+                    const dfCanvas=document.createElement("canvas");
+                    cv.imshow(dfCanvas,diffColor);
+                    const dfData=new Uint8ClampedArray(dfCanvas.getContext("2d").getImageData(0,0,dfCanvas.width,dfCanvas.height).data);
+
+                    // PSNR
+                    let mse=0,pc=0;
+                    for(let p=0;p<img2.W*img2.H;p++){
+                      if(warpedData[p*4+3]===0) continue;
+                      for(let c=0;c<3;c++){const d=warpedData[p*4+c]-img2.data[p*4+c];mse+=d*d;}pc++;
+                    }
+                    const psnrVal=pc>0&&mse>0?Math.round(10*Math.log10(255*255/(mse/(pc*3)))*10)/10:99;
+
+                    // Shift estimate from inliers
+                    let shX=0,shY=0,cnt=0;
+                    for(let i=0;i<goodMatches.size();i++){
+                      if(inlierMask.ucharAt(i,0)){
+                        const m=goodMatches.get(i);
+                        shX+=kps2.get(m.trainIdx).pt.x-kps1.get(m.queryIdx).pt.x;
+                        shY+=kps2.get(m.trainIdx).pt.y-kps1.get(m.queryIdx).pt.y;
+                        cnt++;
+                      }
+                    }
+                    if(cnt){shX=Math.round(shX/cnt*10)/10;shY=Math.round(shY/cnt*10)/10;}
+
+                    setComputed({
+                      kps1Count:kps1.size(),kps2Count:kps2.size(),
+                      matchCount:goodMatches.size(),inliers,
+                      warpedData,ovData,dfData,
+                      dW:img2.W,dH:img2.H,
+                      matchImgData,matchW:matchCanvas2.width,matchH:matchCanvas2.height,
+                      kpCanvas1,kpCanvas2,
+                      psnrVal,shX,shY
+                    });
+                    setLog(`✓  KP: ${kps1.size()}+${kps2.size()}  |  Matches: ${goodMatches.size()}  |  Inliers: ${inliers}/${goodMatches.size()}  |  PSNR: ${psnrVal} dB`);
+
+                    // Cleanup
+                    [src1,src2,gray1,gray2,ds1,ds2,pt1Mat,pt2Mat,inlierMask,H,warped,
+                     warpedRGBA,matchImg,matchMask,kpImg1,kpImg2,overlay,diff,absdiff,diffGray,diffColor].forEach(m=>{try{m.delete();}catch(e){}});
+
+                  }catch(e){setLog("RANSAC error: "+e.message);}
+                  setBusy(false);
+                },30);
+              }catch(e){setLog("Matching error: "+e.message);setBusy(false);}
+            },30);
+          }catch(e){
+            // SIFT not available — fall back to ORB
+            setLog("SIFT unavailable, trying ORB...");
+            try{
+              const orb=cv.ORB_create(1000);
+              const kps1=new cv.KeyPointVector(),kps2=new cv.KeyPointVector();
+              const ds1=new cv.Mat(),ds2=new cv.Mat(),mask=new cv.Mat();
+              orb.detectAndCompute(gray1,mask,kps1,ds1);
+              orb.detectAndCompute(gray2,mask,kps2,ds2);
+              const bf=new cv.BFMatcher(cv.NORM_HAMMING,false);
+              const matches=new cv.DMatchVectorVector();
+              bf.knnMatch(ds1,ds2,matches,2);
+              const goodMatches=new cv.DMatchVector();
+              for(let i=0;i<matches.size();i++){
+                const m=matches.get(i).get(0),n=matches.get(i).get(1);
+                if(m.distance<0.75*n.distance) goodMatches.push_back(m);
+              }
+              setLog(`ORB: ${kps1.size()}+${kps2.size()} KP, ${goodMatches.size()} matches. Running RANSAC...`);
+              // (same pipeline as SIFT above)
+              const pts1=[],pts2=[];
+              for(let i=0;i<goodMatches.size();i++){
+                const m=goodMatches.get(i);
+                pts1.push(kps1.get(m.queryIdx).pt.x,kps1.get(m.queryIdx).pt.y);
+                pts2.push(kps2.get(m.trainIdx).pt.x,kps2.get(m.trainIdx).pt.y);
+              }
+              if(pts1.length<8){setLog("Not enough matches for ORB either.");setBusy(false);return;}
+              const pt1Mat=cv.matFromArray(goodMatches.size(),1,cv.CV_32FC2,pts1);
+              const pt2Mat=cv.matFromArray(goodMatches.size(),1,cv.CV_32FC2,pts2);
+              const inlierMask=new cv.Mat();
+              const H=cv.findHomography(pt1Mat,pt2Mat,cv.RANSAC,5,inlierMask);
+              const inliers=cv.countNonZero(inlierMask);
+              const dsize=new cv.Size(img2.W,img2.H);
+              const warped=new cv.Mat();
+              cv.warpPerspective(src1,warped,H,dsize);
+              const warpedC=document.createElement("canvas");
+              cv.imshow(warpedC,warped);
+              const warpedData=new Uint8ClampedArray(warpedC.getContext("2d").getImageData(0,0,img2.W,img2.H).data);
+              const matchImg=new cv.Mat(),matchMask2=new cv.Mat();
+              cv.drawMatches(src1,kps1,src2,kps2,goodMatches,matchImg,new cv.Scalar(0,255,170,255),new cv.Scalar(255,77,109,255),matchMask2,cv.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS);
+              const mC=document.createElement("canvas"); cv.imshow(mC,matchImg);
+              const matchImgData=mC.getContext("2d").getImageData(0,0,mC.width,mC.height);
+              const kpImg1=new cv.Mat(),kpImg2=new cv.Mat();
+              cv.drawKeypoints(src1,kps1,kpImg1,new cv.Scalar(255,77,109,255));
+              cv.drawKeypoints(src2,kps2,kpImg2,new cv.Scalar(6,214,160,255));
+              const kC1=document.createElement("canvas"),kC2=document.createElement("canvas");
+              cv.imshow(kC1,kpImg1); cv.imshow(kC2,kpImg2);
+              const ov=new cv.Mat(); cv.addWeighted(warped,0.5,src2,0.5,0,ov);
+              const oC=document.createElement("canvas"); cv.imshow(oC,ov);
+              const ovData=new Uint8ClampedArray(oC.getContext("2d").getImageData(0,0,img2.W,img2.H).data);
+              const df=new cv.Mat(),dg=new cv.Mat(),dc=new cv.Mat();
+              cv.absdiff(warped,src2,df); cv.cvtColor(df,dg,cv.COLOR_RGBA2GRAY);
+              cv.applyColorMap(dg,dc,cv.COLORMAP_JET);
+              const dC=document.createElement("canvas"); cv.imshow(dC,dc);
+              const dfData=new Uint8ClampedArray(dC.getContext("2d").getImageData(0,0,img2.W,img2.H).data);
+              setComputed({kps1Count:kps1.size(),kps2Count:kps2.size(),matchCount:goodMatches.size(),inliers,warpedData,ovData,dfData,dW:img2.W,dH:img2.H,matchImgData,matchW:mC.width,matchH:mC.height,kpCanvas1:kC1,kpCanvas2:kC2,psnrVal:"—",shX:"—",shY:"—"});
+              setLog(`✓ ORB: ${kps1.size()}+${kps2.size()} KP | Matches: ${goodMatches.size()} | Inliers: ${inliers}`);
+              [src1,src2,gray1,gray2,ds1,ds2,pt1Mat,pt2Mat,inlierMask,H,warped,matchImg,kpImg1,kpImg2,ov,df,dg,dc].forEach(m=>{try{m.delete();}catch(e){}});
+            }catch(e2){setLog("ORB error: "+e2.message);}
+            setBusy(false);
+          }
+        },30);
+      }catch(e){setLog("Error: "+e.message);setBusy(false);}
     },30);
-    setStep("align");
   };
 
-  const btnStyle=(active)=>({background:active?color+"22":"rgba(255,255,255,0.04)",border:`1px solid ${active?color:"rgba(255,255,255,0.1)"}`,color:active?color:"rgba(255,255,255,0.5)",padding:"7px 14px",borderRadius:2,cursor:"pointer",fontSize:11,letterSpacing:1,fontFamily:"'Share Tech Mono',monospace",transition:"all 0.15s"});
+  const doReset=()=>{setImg1(null);setImg2(null);setComputed(null);setLog("");setBusy(false);[c1,c2,cResult,cH1,cH2,cH3].forEach(r=>{if(r.current){r.current.width=2;r.current.height=2;}});};
+
+  // ── Render topic view ───────────────────────────────────────────────────────
+  useEffect(()=>{
+    if(!computed) return;
+    const{warpedData,ovData,dfData,dW,dH,matchImgData,matchW,matchH,kpCanvas1,kpCanvas2}=computed;
+    const t=activeTopic;
+
+    if(t==="Feature Detection"){
+      if(c1.current&&kpCanvas1){c1.current.width=kpCanvas1.width;c1.current.height=kpCanvas1.height;c1.current.getContext("2d").drawImage(kpCanvas1,0,0);}
+      if(c2.current&&kpCanvas2){c2.current.width=kpCanvas2.width;c2.current.height=kpCanvas2.height;c2.current.getContext("2d").drawImage(kpCanvas2,0,0);}
+    }
+    if(t==="Keypoint Matching"||t==="Upload & Match"){
+      if(cResult.current&&matchImgData){
+        cResult.current.width=matchW; cResult.current.height=matchH;
+        cResult.current.getContext("2d").putImageData(matchImgData,0,0);
+      }
+    }
+    if(t==="Homography"){
+      if(!cResult.current) return;
+      const W1=img1.W,H1=img1.H,W2=img2.W,H2=img2.H;
+      const CH=Math.max(H1,H2,dH),CW=W1+W2+dW+16;
+      cResult.current.width=CW; cResult.current.height=CH;
+      const ctx=cResult.current.getContext("2d");
+      ctx.fillStyle="#06060e"; ctx.fillRect(0,0,CW,CH);
+      ctx.putImageData(img1.id,0,Math.round((CH-H1)/2));
+      ctx.putImageData(img2.id,W1+8,Math.round((CH-H2)/2));
+      if(ovData) ctx.putImageData(new ImageData(ovData,dW,dH),W1+W2+16,Math.round((CH-dH)/2));
+      ctx.fillStyle="rgba(255,255,255,0.4)"; ctx.font="10px monospace";
+      ctx.fillText("Reference",4,12); ctx.fillText("Moving",W1+12,12);
+      if(ovData) ctx.fillText("Registered Overlay",W1+W2+20,12);
+      setTimeout(()=>{
+        drawHist(cH1,img1.data,img1.W,img1.H,"Reference");
+        drawHist(cH2,img2.data,img2.W,img2.H,"Moving");
+        if(warpedData) drawHist(cH3,warpedData,dW,dH,"Registered (valid px)",true);
+      },60);
+    }
+    if(t==="Aligned Overlay"){
+      if(!cResult.current||!warpedData) return;
+      cResult.current.width=dW; cResult.current.height=dH;
+      const ctx=cResult.current.getContext("2d");
+      ctx.fillStyle="#000"; ctx.fillRect(0,0,dW,dH);
+      ctx.putImageData(new ImageData(warpedData,dW,dH),0,0);
+    }
+    if(t==="Difference Map"){
+      if(!cResult.current||!dfData) return;
+      cResult.current.width=dW; cResult.current.height=dH;
+      cResult.current.getContext("2d").putImageData(new ImageData(dfData,dW,dH),0,0);
+    }
+  },[computed,activeTopic]);
+
+  const LBL={fontSize:9,letterSpacing:3,color:"rgba(255,255,255,0.2)",textTransform:"uppercase",marginBottom:5};
+  const BOX={background:"#06060e",border:"1px solid rgba(255,255,255,0.07)",borderRadius:4,overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",minHeight:110};
+  const Stat=({l,v,c="#4cc9f0"})=>(
+    <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:3,padding:"6px 10px",textAlign:"center",minWidth:75}}>
+      <div style={{fontSize:8,letterSpacing:2,color:"rgba(255,255,255,0.25)",marginBottom:2}}>{l}</div>
+      <div style={{fontSize:13,fontWeight:"bold",color:c}}>{v}</div>
+    </div>
+  );
 
   return(
-    <div style={{padding:"12px 0"}}>
-      {/* Upload row */}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
-        {[{ref:file1,label:"Reference Image",setFn:setImg1,canvasRef:canvas1,loaded:!!img1,color:"#f72585"},
-          {ref:file2,label:"Moving Image",setFn:setImg2,canvasRef:canvas2,loaded:!!img2,color:"#06d6a0"}].map((it,idx)=>(
-          <div key={idx}>
-            <div style={{fontSize:9,letterSpacing:3,color:it.color,marginBottom:6}}>{it.label.toUpperCase()}</div>
-            <div style={{background:"#06060e",border:`1px solid ${it.loaded?it.color:"rgba(255,255,255,0.06)"}`,borderRadius:4,overflow:"hidden",minHeight:120,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",transition:"border 0.2s"}}
-              onClick={()=>it.ref.current?.click()}>
-              <canvas ref={it.canvasRef} style={{maxWidth:"100%",maxHeight:200,display:it.loaded?"block":"none"}}/>
-              {!it.loaded&&<div style={{fontSize:11,color:"rgba(255,255,255,0.2)",letterSpacing:2}}>+ CLICK TO UPLOAD</div>}
-            </div>
-            <input ref={it.ref} type="file" accept="image/*" style={{display:"none"}} onChange={e=>{const f=e.target.files?.[0];if(f) it.setFn(null)||loadImg(f,it.setFn,it.canvasRef);e.target.value="";}}/>
+    <div style={{padding:14,overflowY:"auto",flex:1,display:"flex",flexDirection:"column",gap:10}}>
+      {/* OpenCV status */}
+      <div style={{fontSize:10,padding:"4px 10px",borderRadius:3,background:cvReady?"rgba(6,214,160,0.06)":"rgba(247,127,0,0.06)",border:`1px solid ${cvReady?"rgba(6,214,160,0.2)":"rgba(247,127,0,0.2)"}`,color:cvReady?"#06d6a0":"#f77f00"}}>
+        {cvReady?"✓ OpenCV.js ready — Real SIFT/ORB matching available":"⏳ Loading OpenCV.js (requires internet)..."}
+      </div>
+      {/* Buttons */}
+      <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+        <button onClick={runAll} disabled={busy||!cvReady}
+          style={{background:computed?"rgba(6,214,160,0.15)":"rgba(255,255,255,0.03)",border:`1px solid ${computed?color:"rgba(255,255,255,0.2)"}`,color:computed?color:"rgba(255,255,255,0.5)",padding:"8px 18px",cursor:busy||!cvReady?"not-allowed":"pointer",borderRadius:3,fontFamily:"monospace",fontSize:11,letterSpacing:1,opacity:busy||!cvReady?0.6:1}}>
+          {busy?"⏳ Processing...":"⚡ Run Registration"}
+        </button>
+        <button onClick={doReset} style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.35)",padding:"8px 14px",cursor:"pointer",borderRadius:3,fontFamily:"monospace",fontSize:11}}>↺ Reset</button>
+      </div>
+      {log&&<div style={{fontSize:10,padding:"5px 10px",borderRadius:3,background:computed&&!busy?"rgba(6,214,160,0.06)":"rgba(247,127,0,0.06)",border:`1px solid ${computed&&!busy?"rgba(6,214,160,0.25)":"rgba(247,127,0,0.25)"}`,color:computed&&!busy?"#06d6a0":"#f77f00"}}>{log}</div>}
+      {/* Upload */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+        {[{label:"REFERENCE IMAGE",ref:c1,img:img1,set:setImg1,cl:color},{label:"MOVING IMAGE",ref:c2,img:img2,set:setImg2,cl:"#4cc9f0"}].map(({label,ref,img,set,cl})=>(
+          <div key={label}>
+            <div style={LBL}>{label}</div>
+            <div style={{...BOX,border:`1px solid ${cl}33`,minHeight:150}}><canvas ref={ref} style={{maxWidth:"100%",maxHeight:190,display:"block"}}/></div>
+            <label style={{display:"block",marginTop:5,textAlign:"center",background:`${cl}0f`,border:`1px solid ${cl}44`,color:cl,padding:"6px",cursor:"pointer",borderRadius:3,fontFamily:"monospace",fontSize:10,letterSpacing:1}}>
+              ⬆ {img?"Change":"Upload"}
+              <input type="file" accept="image/*" style={{display:"none"}} onChange={e=>e.target.files[0]&&loadImg(e.target.files[0],set,ref)}/>
+            </label>
           </div>
         ))}
       </div>
-
-      {/* Step buttons */}
-      <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
-        <button style={btnStyle(true)} onClick={runDetect} disabled={!img1||!img2}>🔍 Detect Features</button>
-        <button style={btnStyle(step==="match"||step==="align")} onClick={runMatch} disabled={!img1||!img2}>🔗 Match Keypoints</button>
-        <button style={btnStyle(step==="align")} onClick={runAlign} disabled={!img1||!img2}>🎯 Align & Register</button>
-        <button style={{...btnStyle(false),color:"rgba(255,255,255,0.3)"}} onClick={()=>{setImg1(null);setImg2(null);setStep("upload");setMatchLines([]);setAlignedData(null);setDiffData(null);setStats(null);}}>Reset Reset</button>
-      </div>
-
       {/* Stats */}
-      {stats&&<div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
-        {[["Keypoints A",stats.kps1,"#f72585"],["Keypoints B",stats.kps2,"#06d6a0"],stats.matches&&["Matches",stats.matches,"#4cc9f0"],stats.tx&&["Shift X",stats.tx+"px","#f77f00"],stats.ty&&["Shift Y",stats.ty+"px","#f77f00"],stats.psnr&&["PSNR",stats.psnr+" dB","#7209b7"]].filter(Boolean).map(([l,v,c])=>(
-          <div key={l} style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:3,padding:"6px 12px"}}>
-            <div style={{fontSize:9,letterSpacing:2,color:"rgba(255,255,255,0.25)"}}>{l}</div>
-            <div style={{fontSize:14,color:c,fontWeight:"bold"}}>{v}</div>
-          </div>
-        ))}
+      {computed&&<div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
+        <Stat l="KP A" v={computed.kps1Count} c="#f72585"/>
+        <Stat l="KP B" v={computed.kps2Count} c="#06d6a0"/>
+        <Stat l="MATCHES" v={computed.matchCount} c="#4361ee"/>
+        <Stat l="INLIERS" v={computed.inliers} c="#f77f00"/>
+        <Stat l="SHIFT X" v={computed.shX!=="—"?computed.shX+"px":"—"} c="#4cc9f0"/>
+        <Stat l="SHIFT Y" v={computed.shY!=="—"?computed.shY+"px":"—"} c="#4cc9f0"/>
+        <Stat l="PSNR" v={computed.psnrVal!=="—"?computed.psnrVal+" dB":"—"} c={computed.psnrVal>25?"#06d6a0":computed.psnrVal>15?"#f77f00":"#f72585"}/>
       </div>}
-
-      {/* Match visualization */}
-      {step==="match"&&<div style={{marginBottom:12}}>
-        <div style={{fontSize:9,letterSpacing:3,color:"rgba(255,255,255,0.3)",marginBottom:6}}>KEYPOINT MATCHES (top 30 shown)</div>
-        <div style={{background:"#06060e",border:"1px solid rgba(255,255,255,0.06)",borderRadius:4,overflow:"auto"}}>
-          <canvas ref={matchCanvas} style={{maxWidth:"100%",display:"block"}}/>
+      {/* Feature Detection */}
+      {computed&&activeTopic==="Feature Detection"&&<>
+        <div style={LBL}>DETECTED KEYPOINTS — {computed.kps1Count} + {computed.kps2Count}</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+          <div><div style={{...LBL,color:"#f72585"}}>Reference — {computed.kps1Count} KP</div><div style={BOX}><canvas ref={c1} style={{maxWidth:"100%",maxHeight:240,display:"block"}}/></div></div>
+          <div><div style={{...LBL,color:"#06d6a0"}}>Moving — {computed.kps2Count} KP</div><div style={BOX}><canvas ref={c2} style={{maxWidth:"100%",maxHeight:240,display:"block"}}/></div></div>
         </div>
-      </div>}
-
-      {/* Aligned + diff */}
-      {step==="align"&&<div className="canvas-grid" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-        <div>
-          <div style={{fontSize:9,letterSpacing:3,color:color,marginBottom:6}}>REGISTERED OVERLAY</div>
-          <div style={{background:"#06060e",border:`1px solid ${color}44`,borderRadius:4,overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",minHeight:120}}>
-            <canvas ref={alignCanvas} style={{maxWidth:"100%",maxHeight:250,display:"block"}}/>
-          </div>
-          {alignedData&&<Histogram imageData={alignedData} label="Registered Histogram"/>}
+      </>}
+      {/* Keypoint Matching */}
+      {computed&&(activeTopic==="Keypoint Matching"||activeTopic==="Upload & Match")&&<>
+        <div style={LBL}>KEYPOINT MATCHES — {computed.matchCount} MATCHES | INLIERS: {computed.inliers}/{computed.matchCount}</div>
+        <div style={BOX}><canvas ref={cResult} style={{maxWidth:"100%",display:"block"}}/></div>
+      </>}
+      {/* Homography */}
+      {computed&&activeTopic==="Homography"&&<>
+        <div style={LBL}>REGISTRATION RESULT — REFERENCE | MOVING | OVERLAY</div>
+        <div style={BOX}><canvas ref={cResult} style={{maxWidth:"100%",display:"block"}}/></div>
+        <div style={LBL}>RGB HISTOGRAM COMPARISON</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+          <div style={BOX}><canvas ref={cH1} style={{maxWidth:"100%",display:"block"}}/></div>
+          <div style={BOX}><canvas ref={cH2} style={{maxWidth:"100%",display:"block"}}/></div>
+          <div style={BOX}><canvas ref={cH3} style={{maxWidth:"100%",display:"block"}}/></div>
         </div>
-        <div>
-          <div style={{fontSize:9,letterSpacing:3,color:"#f72585",marginBottom:6}}>DIFFERENCE MAP</div>
-          <div style={{background:"#06060e",border:"1px solid rgba(247,37,133,0.3)",borderRadius:4,overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",minHeight:120}}>
-            <canvas ref={diffCanvas} style={{maxWidth:"100%",maxHeight:250,display:"block"}}/>
-          </div>
-          {diffData&&<Histogram imageData={diffData} label="Difference Histogram"/>}
-        </div>
+      </>}
+      {/* Aligned Overlay */}
+      {computed&&activeTopic==="Aligned Overlay"&&<>
+        <div style={LBL}>REGISTERED IMAGE — WARPED REFERENCE INTO MOVING SPACE</div>
+        <div style={BOX}><canvas ref={cResult} style={{maxWidth:"100%",maxHeight:400,display:"block"}}/></div>
+      </>}
+      {/* Difference Map */}
+      {computed&&activeTopic==="Difference Map"&&<>
+        <div style={LBL}>DIFFERENCE MAP — JET COLORMAP</div>
+        <div style={BOX}><canvas ref={cResult} style={{maxWidth:"100%",maxHeight:400,display:"block"}}/></div>
+      </>}
+      {/* Instructions */}
+      {!computed&&<div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.05)",borderRadius:4,padding:14,fontSize:11,color:"rgba(255,255,255,0.35)",lineHeight:2.2}}>
+        <div style={{fontSize:10,letterSpacing:2,color,marginBottom:8}}>HOW TO USE</div>
+        1. Upload <span style={{color:"#f72585"}}>Reference Image</span> — the image to locate<br/>
+        2. Upload <span style={{color:"#4cc9f0"}}>Moving Image</span> — the target scene<br/>
+        3. Wait for <span style={{color:"#06d6a0"}}>OpenCV.js ready</span> status above<br/>
+        4. Click <span style={{color:"#06d6a0"}}>Run Registration</span> — uses real SIFT + FLANN + RANSAC<br/>
+        5. Switch operations in left panel to see each result
       </div>}
     </div>
   );
 }
 
-// ----------------------------------------------------------
+
 // MAIN APP
 // ----------------------------------------------------------
 const REG_SPECIAL=["Upload & Match","Feature Detection","Keypoint Matching","Homography","Aligned Overlay","Difference Map"];
@@ -1762,7 +2011,7 @@ export default function App(){
 
             {showRegPanel ? (
               <ErrorBoundary key={activeMod.id+activeTopic}>
-                <RegistrationPanel color={activeMod.color}/>
+                <RegistrationPanel color={activeMod.color} activeTopic={activeTopic}/>
               </ErrorBoundary>
             ) : (
               <>
