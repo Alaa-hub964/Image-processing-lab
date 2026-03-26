@@ -362,7 +362,6 @@ function processImg(src, modId, topic, params={}) {
     }
   }
 
-  // -- WAVELETS, MEDICAL, COMPRESSION, ETC.
   else {
       for(let i=0;i<N;i++){out[i*4]=out[i*4+1]=out[i*4+2]=Math.round(gray[i]);out[i*4+3]=255;}
   }
@@ -370,169 +369,58 @@ function processImg(src, modId, topic, params={}) {
 }
 
 // ----------------------------------------------------------
-// REGISTRATION ENGINE (Unified & Improved)
+// REGISTRATION ENGINE (Restored Simple Match + Advanced Math)
 // ----------------------------------------------------------
-const gaussBlur=(g,W,H,sigma=1.5)=>{
-  const ks=Math.round(sigma*3)*2+1,half=ks>>1;
-  const kern=new Float32Array(ks);
-  let sum=0;
-  for(let i=0;i<ks;i++){kern[i]=Math.exp(-0.5*((i-half)/sigma)**2);sum+=kern[i];}
-  for(let i=0;i<ks;i++) kern[i]/=sum;
-  const tmp=new Float32Array(W*H),out=new Float32Array(W*H);
-  for(let y=0;y<H;y++) for(let x=0;x<W;x++){
-    let s=0; for(let k=0;k<ks;k++){const px=Math.min(Math.max(x+k-half,0),W-1);s+=g[y*W+px]*kern[k];}
-    tmp[y*W+x]=s;
-  }
-  for(let y=0;y<H;y++) for(let x=0;x<W;x++){
-    let s=0; for(let k=0;k<ks;k++){const py=Math.min(Math.max(y+k-half,0),H-1);s+=tmp[py*W+x]*kern[k];}
-    out[y*W+x]=s;
-  }
-  return out;
-};
 
-const harrisMS=(gray,W,H,nMax=600)=>{
-  const scales=[1,1.6,2.5];
-  const allKps=[];
-  for(const sigma of scales){
-    const g=gaussBlur(gray,W,H,sigma);
-    const Ix=new Float32Array(W*H),Iy=new Float32Array(W*H);
-    for(let y=1;y<H-1;y++) for(let x=1;x<W-1;x++){
-      Ix[y*W+x]=(g[y*W+x+1]-g[y*W+x-1])*0.5;
-      Iy[y*W+x]=(g[(y+1)*W+x]-g[(y-1)*W+x])*0.5;
-    }
-    const R=new Float32Array(W*H);
-    const winR=Math.round(sigma*2)+1;
-    for(let y=winR+1;y<H-winR-1;y++) for(let x=winR+1;x<W-winR-1;x++){
-      let a=0,b=0,c=0;
-      for(let dy=-winR;dy<=winR;dy++) for(let dx=-winR;dx<=winR;dx++){
-        const ix=Ix[(y+dy)*W+(x+dx)],iy=Iy[(y+dy)*W+(x+dx)];
-        a+=ix*ix; b+=iy*iy; c+=ix*iy;
-      }
-      R[y*W+x]=a*b-c*c-0.04*(a+b)*(a+b);
-    }
-    let maxR=0; for(let i=0;i<W*H;i++) if(R[i]>maxR) maxR=R[i];
-    const thr=maxR*0.005;
-    const nms=Math.round(sigma*4)+3;
-    for(let y=nms;y<H-nms;y++) for(let x=nms;x<W-nms;x++){
-      if(R[y*W+x]<thr) continue;
-      let best=true;
-      for(let dy=-nms;dy<=nms&&best;dy++) for(let dx=-nms;dx<=nms;dx++){
-        if(!dx&&!dy) continue;
-        if(R[(y+dy)*W+(x+dx)]>=R[y*W+x]){best=false;break;}
-      }
-      if(best) allKps.push({x,y,r:R[y*W+x],sigma});
-    }
+function detectHarrisCorners(gray, W, H, maxKP=800){
+  const KX=[[-1,0,1],[-2,0,2],[-1,0,1]],KY=[[-1,-2,-1],[0,0,0],[1,2,1]];
+  const Ix=convolve(gray,W,H,KX),Iy=convolve(gray,W,H,KY);
+  const R=new Float32Array(W*H);
+  for(let i=0;i<W*H;i++){const A=Ix[i]*Ix[i],B=Iy[i]*Iy[i],C=Ix[i]*Iy[i];R[i]=A*B-(C*C)-0.05*((A+B)*(A+B));}
+  const thresh=arrMax(R)*0.05; // Loosened threshold to get more points
+  const kps=[];
+  for(let y=5;y<H-5;y++) for(let x=5;x<W-5;x++){
+    const r=R[y*W+x];if(r<thresh) continue;
+    let isMax=true;
+    for(let dy=-2;dy<=2&&isMax;dy++) for(let dx=-2;dx<=2;dx++){if(dx===0&&dy===0) continue;if(R[(y+dy)*W+(x+dx)]>=r){isMax=false;break;}}
+    if(isMax) kps.push({x,y,r});
   }
-  allKps.sort((a,b)=>b.r-a.r);
-  const kept=[], used=new Set();
-  for(const kp of allKps){
-    const key=`${Math.floor(kp.x/5)}_${Math.floor(kp.y/5)}`;
-    if(!used.has(key)){used.add(key);kept.push(kp);}
-    if(kept.length>=nMax) break;
-  }
-  return kept;
-};
+  kps.sort((a,b)=>b.r-a.r);
+  return kps.slice(0,maxKP);
+}
 
-// ── ROTATION-INVARIANT SIFT DESCRIPTOR ──
-const buildSIFTDesc=(gray,W,H,x,y,sigma=1.6)=>{
-  const g=gaussBlur(gray,W,H,sigma);
-  
-  // 1. Calculate Dominant Orientation (Theta)
-  const hist36 = new Float32Array(36);
-  const rad = Math.round(3 * sigma);
-  for(let dy=-rad; dy<=rad; dy++){
-    for(let dx=-rad; dx<=rad; dx++){
-      const px=x+dx, py=y+dy;
-      if(px<1||px>=W-1||py<1||py>=H-1) continue;
-      const gx = g[py*W+px+1] - g[py*W+px-1];
-      const gy = g[(py+1)*W+px] - g[(py-1)*W+px];
-      const mag = Math.sqrt(gx*gx + gy*gy);
-      const ang = (Math.atan2(gy,gx) + Math.PI) * 180 / Math.PI; 
-      const bin = Math.floor(ang / 10) % 36;
-      const weight = Math.exp(-(dx*dx+dy*dy)/(2*sigma*sigma));
-      hist36[bin] += mag * weight;
-    }
+const patchDescriptor=(gray, W, H, x, y, size=16)=>{ // Slightly larger patch for better context
+  const half=Math.floor(size/2),desc=[];
+  for(let dy=-half;dy<half;dy++) for(let dx=-half;dx<half;dx++){
+    const px=Math.min(Math.max(x+dx,0),W-1),py=Math.min(Math.max(y+dy,0),H-1);
+    desc.push(gray[py*W+px]);
   }
-  
-  let maxWeight=0, domAng=0;
-  for(let i=0;i<36;i++){
-      if(hist36[i]>maxWeight){ maxWeight=hist36[i]; domAng=i*10; }
-  }
-  const theta = domAng * Math.PI / 180;
-  const cosT = Math.cos(theta), sinT = Math.sin(theta);
-
-  // 2. Build 128-d descriptor relative to Dominant Orientation
-  const cellSz=4, nCells=4, nBins=8;
-  const desc=new Float32Array(nCells*nCells*nBins);
-  const half=(nCells*cellSz)/2;
-  let di=0;
-  
-  for(let cy=0;cy<nCells;cy++){
-    for(let cx=0;cx<nCells;cx++){
-      const hist = new Float32Array(nBins);
-      for(let dy=0;dy<cellSz;dy++){
-        for(let dx=0;dx<cellSz;dx++){
-          const sx = cx*cellSz + dx - half + 0.5;
-          const sy = cy*cellSz + dy - half + 0.5;
-          const rx = Math.round(x + sx*cosT - sy*sinT);
-          const ry = Math.round(y + sx*sinT + sy*cosT);
-
-          if(rx<1||rx>=W-1||ry<1||ry>=H-1) continue;
-
-          const gx = g[ry*W+rx+1] - g[ry*W+rx-1];
-          const gy = g[(ry+1)*W+rx] - g[(ry-1)*W+rx];
-          const mag = Math.sqrt(gx*gx + gy*gy);
-          
-          let ang = Math.atan2(gy,gx) - theta;
-          ang = (ang + 2*Math.PI) % (2*Math.PI);
-          const b0 = Math.floor(ang/(2*Math.PI)*nBins) % nBins;
-          hist[b0] += mag;
-        }
-      }
-      for(let b=0;b<nBins;b++) desc[di++] = hist[b];
-    }
-  }
-  
-  // 3. Normalize
-  let norm=0; for(let i=0;i<128;i++) norm+=desc[i]*desc[i];
-  norm=Math.sqrt(norm)||1;
-  for(let i=0;i<128;i++) desc[i]=Math.min(desc[i]/norm, 0.2); 
-  
-  norm=0; for(let i=0;i<128;i++) norm+=desc[i]*desc[i];
-  norm=Math.sqrt(norm)||1;
-  for(let i=0;i<128;i++) desc[i]/=norm;
-  
   return desc;
 };
 
-const l2=(a,b)=>{let s=0;for(let i=0;i<a.length;i++){const v=a[i]-b[i];s+=v*v;}return s;};
+const ssd=(a,b)=>{let s=0;for(let i=0;i<a.length;i++) s+=((a[i]-b[i])*(a[i]-b[i]));return s;};
 
-const ratioMatch=(kps1,ds1,kps2,ds2,ratio=0.75)=>{
-  const M=[];
+function matchKeypoints(kps1, descs1, kps2, descs2, ratio=0.85){ // Lenient ratio test
+  const matches=[];
   for(let i=0;i<kps1.length;i++){
-    let d1=Infinity,d2=Infinity,bj=-1;
+    let best=Infinity,second=Infinity,bestJ=-1;
     for(let j=0;j<kps2.length;j++){
-      const d=l2(ds1[i],ds2[j]);
-      if(d<d1){d2=d1;d1=d;bj=j;} else if(d<d2) d2=d;
+      const d=ssd(descs1[i],descs2[j]);
+      if(d<best){second=best;best=d;bestJ=j;}
+      else if(d<second) second=d;
     }
-    if(bj>=0&&d1<ratio*ratio*d2){
-      let rev_d1=Infinity, rev_d2=Infinity, rev_bi=-1;
-      for(let k=0;k<kps1.length;k++){
-        const d=l2(ds1[k],ds2[bj]);
-        if(d<rev_d1){rev_d2=rev_d1;rev_d1=d;rev_bi=k;} else if(d<rev_d2) rev_d2=d;
-      }
-      if(rev_bi === i) M.push({i,j:bj,d:d1});
-    }
+    // Simple Lowe's ratio test (no extreme bidirectional check to ensure we get matches)
+    if(bestJ>=0&&best<second*(ratio*ratio)) matches.push({i,j:bestJ,dist:best});
   }
-  M.sort((a,b)=>a.d-b.d);
-  return M;
-};
+  return matches;
+}
 
-// ── LEAST SQUARES NORMALIZED DLT (Matches OpenCV) ──
+// ── LEAST SQUARES NORMALIZED DLT (Fixes the extreme stretching) ──
 const dltN=(p1,p2)=>{
   const N = p1.length;
   if(N<4) return null;
 
+  // 1. Normalize points (Hartley's Algorithm)
   let cx1=0, cy1=0, cx2=0, cy2=0;
   for(let i=0;i<N;i++){ cx1+=p1[i][0]; cy1+=p1[i][1]; cx2+=p2[i][0]; cy2+=p2[i][1]; }
   cx1/=N; cy1/=N; cx2/=N; cy2/=N;
@@ -552,6 +440,7 @@ const dltN=(p1,p2)=>{
     A.push([0, 0, 0, x, y, 1, -v*x, -v*y]); b.push(v);
   }
 
+  // 2. Solve Least Squares: (A^T A) x = A^T b
   const AtA = Array(8).fill(0).map(()=>Array(8).fill(0));
   const Atb = Array(8).fill(0);
   for(let i=0; i<8; i++){
@@ -561,6 +450,7 @@ const dltN=(p1,p2)=>{
     for(let k=0; k<2*N; k++) Atb[i] += A[k][i] * b[k];
   }
 
+  // Gaussian Elimination
   for(let c=0; c<8; c++){
     let maxR=c, maxV=Math.abs(AtA[c][c]);
     for(let r=c+1; r<8; r++) if(Math.abs(AtA[r][c]) > maxV){ maxV=Math.abs(AtA[r][c]); maxR=r; }
@@ -583,6 +473,7 @@ const dltN=(p1,p2)=>{
 
   const hn = [...Atb, 1];
   
+  // 3. Denormalize matrix back to original coordinates
   const h = [
     hn[0]*s1/s2 + cx2*hn[6]*s1,
     hn[1]*s1/s2 + cx2*hn[7]*s1,
@@ -621,6 +512,7 @@ const doRansac=(p1,p2,thr=5,its=2500)=>{
     if(n>bN){bN=n;bH=H;bMask=mask;}
   }
   
+  // Re-run on all inliers to smooth the perspective warp
   if(bN>=4){
     const inliers1=[], inliers2=[];
     for(let i=0;i<N;i++){
@@ -659,6 +551,7 @@ const warpImg=(srcData,sW,sH,H,dW,dH)=>{
   }
   return out;
 };
+
 
 // ----------------------------------------------------------
 // COMPONENTS
@@ -743,22 +636,22 @@ function RegistrationPanel({color, activeTopic}){
 
   const runAll=()=>{
     if(!img1||!img2){alert("Please upload both images first.");return;}
-    setBusy(true); setLog("Step 1/4: Detecting multi-scale Harris corners...");
+    setBusy(true); setLog("Step 1/4: Detecting Harris corners...");
     setTimeout(()=>{
       try{
         const g1=toGray(img1.data,img1.W,img1.H);
         const g2=toGray(img2.data,img2.W,img2.H);
-        const kps1=harrisMS(g1,img1.W,img1.H,600);
-        const kps2=harrisMS(g2,img2.W,img2.H,600);
-        setLog(`Step 2/4: Building Rotation-Invariant SIFT descriptors (${kps1.length}+${kps2.length} KP)...`);
+        const kps1=detectHarrisCorners(g1,img1.W,img1.H,800);
+        const kps2=detectHarrisCorners(g2,img2.W,img2.H,800);
+        setLog(`Step 2/4: Building descriptors (${kps1.length}+${kps2.length} KP)...`);
         
         setTimeout(()=>{
-          const ds1=kps1.map(({x,y,sigma})=>buildSIFTDesc(g1,img1.W,img1.H,x,y,sigma||1.6));
-          const ds2=kps2.map(({x,y,sigma})=>buildSIFTDesc(g2,img2.W,img2.H,x,y,sigma||1.6));
-          setLog("Step 3/4: Bidirectional Ratio-test matching...");
+          const ds1=kps1.map(({x,y})=>patchDescriptor(g1,img1.W,img1.H,x,y,16));
+          const ds2=kps2.map(({x,y})=>patchDescriptor(g2,img2.W,img2.H,x,y,16));
+          setLog("Step 3/4: Matching features...");
           
           setTimeout(()=>{
-            const matches=ratioMatch(kps1,ds1,kps2,ds2,0.75);
+            const matches=matchKeypoints(kps1,ds1,kps2,ds2,0.85); // Back to lenient matching
             setLog(`Step 4/4: RANSAC + Normalized DLT homography (${matches.length} matches)...`);
             
             setTimeout(()=>{
@@ -937,15 +830,14 @@ export default function App(){
   const [diffMode,setDiffMode]=useState(false);
   const [webcamOn,setWebcamOn]=useState(false);
   const [webcamErr,setWebcamErr]=useState(null);
-  const [liveMode,setLiveMode]=useState('sobel'); 
+  const [liveMode,setLiveMode]=useState('sobel'); // 'sobel' | 'color' | 'capture'
   const [quizMode,setQuizMode]=useState(false);
   const [quizQ,setQuizQ]=useState(null);
   const [quizScore,setQuizScore]=useState({right:0,wrong:0});
   const [quizFeedback,setQuizFeedback]=useState(null);
   const [quizImgUrl,setQuizImgUrl]=useState(null);
-  const [mobTab,setMobTab]=useState('canvas'); 
-  
-  const origRef=useRef(null),procRef=useRef(null),fileRef=useRef(null),webcamRef=useRef(null),diffRef=useRef(null),streamRef=useRef(null),liveCanvasRef=useRef(null),animFrameRef=useRef(null);
+  const [mobTab,setMobTab]=useState('canvas'); // 'modules'|'ops'|'canvas'|'theory'
+  const origRef=useRef(null),procRef=useRef(null),fileRef=useRef(null),webcamRef=useRef(null),diffRef=useRef(null),streamRef=useRef(null),camFileRef=useRef(null),liveCanvasRef=useRef(null),animFrameRef=useRef(null);
 
   const isSpecialReg=activeMod.id==="registration"&&REG_SPECIAL.includes(activeTopic);
   const showRegPanel=isSpecialReg;
@@ -1305,6 +1197,7 @@ export default function App(){
             <button className="ub" onClick={()=>setDiffMode(d=>!d)} style={{padding:"7px 10px",fontSize:10,borderColor:diffMode?"#f77f00":"rgba(247,127,0,0.3)",color:diffMode?"#f77f00":"rgba(247,127,0,0.6)",background:diffMode?"rgba(247,127,0,0.12)":"transparent"}}>🔀 {diffMode?"DIFF ON":"DIFF"}</button>
             <button className="ub" onClick={()=>{setQuizMode(true);startQuiz();}} style={{padding:"7px 10px",fontSize:10,borderColor:"rgba(67,97,238,0.4)",color:"#4361ee",background:"rgba(67,97,238,0.07)"}}>🧩 QUIZ</button>
           </div>}
+          {/* Mobile tool row - only shows on mobile */}
           {!showRegPanel&&<div className="mob-tool-row">
             <label htmlFor="mobUpload" className="ub" style={{cursor:"pointer",textAlign:"center",flex:1}}>⬆ IMG</label>
             <input id="mobUpload" type="file" accept="image/*" style={{display:"none"}} onChange={handleUpload}/>
