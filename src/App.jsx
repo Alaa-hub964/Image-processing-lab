@@ -982,91 +982,115 @@ function computeHomography(src, dst) {
 }
 
 
-// ── DLT homography (Robust Normalized) ──────────────────────────────────
-const dlt4 = (p1, p2) => {
-  // 1. Normalize points (Hartley's Algorithm) to prevent math precision errors
-  let cx1 = 0, cy1 = 0, cx2 = 0, cy2 = 0;
-  for (let i = 0; i < 4; i++) { cx1 += p1[i][0]; cy1 += p1[i][1]; cx2 += p2[i][0]; cy2 += p2[i][1]; }
-  cx1 /= 4; cy1 /= 4; cx2 /= 4; cy2 /= 4;
+// ── LEAST SQUARES NORMALIZED DLT (Matches OpenCV's final polish) ──
+const dltN=(p1,p2)=>{
+  const N = p1.length;
+  if(N<4) return null;
 
-  let s1 = 0, s2 = 0;
-  for (let i = 0; i < 4; i++) {
-    s1 += Math.sqrt((p1[i][0] - cx1) ** 2 + (p1[i][1] - cy1) ** 2);
-    s2 += Math.sqrt((p2[i][0] - cx2) ** 2 + (p2[i][1] - cy2) ** 2);
+  // 1. Normalize points (Hartley's Algorithm)
+  let cx1=0, cy1=0, cx2=0, cy2=0;
+  for(let i=0;i<N;i++){ cx1+=p1[i][0]; cy1+=p1[i][1]; cx2+=p2[i][0]; cy2+=p2[i][1]; }
+  cx1/=N; cy1/=N; cx2/=N; cy2/=N;
+
+  let s1=0, s2=0;
+  for(let i=0;i<N;i++){
+    s1 += Math.sqrt((p1[i][0]-cx1)**2 + (p1[i][1]-cy1)**2);
+    s2 += Math.sqrt((p2[i][0]-cx2)**2 + (p2[i][1]-cy2)**2);
   }
-  s1 = Math.SQRT2 / (s1 / 4 || 1); s2 = Math.SQRT2 / (s2 / 4 || 1);
+  s1 = Math.SQRT2 / (s1/N || 1); s2 = Math.SQRT2 / (s2/N || 1);
 
   const A = [], b = [];
-  for (let i = 0; i < 4; i++) {
-    const x = (p1[i][0] - cx1) * s1, y = (p1[i][1] - cy1) * s1;
-    const u = (p2[i][0] - cx2) * s2, v = (p2[i][1] - cy2) * s2;
-    A.push([x, y, 1, 0, 0, 0, -u * x, -u * y]);
-    b.push(u);
-    A.push([0, 0, 0, x, y, 1, -v * x, -v * y]);
-    b.push(v);
+  for(let i=0;i<N;i++){
+    const x = (p1[i][0]-cx1)*s1, y = (p1[i][1]-cy1)*s1;
+    const u = (p2[i][0]-cx2)*s2, v = (p2[i][1]-cy2)*s2;
+    A.push([x, y, 1, 0, 0, 0, -u*x, -u*y]); b.push(u);
+    A.push([0, 0, 0, x, y, 1, -v*x, -v*y]); b.push(v);
   }
 
-  // 2. Solve 8x8 linear system using Gaussian Elimination
-  for (let c = 0; c < 8; c++) {
-    let maxR = c, maxV = Math.abs(A[c][c]);
-    for (let r = c + 1; r < 8; r++) if (Math.abs(A[r][c]) > maxV) { maxV = Math.abs(A[r][c]); maxR = r; }
-    if (maxV < 1e-10) return null; // Singular matrix check
+  // 2. Solve Least Squares: (A^T A) x = A^T b
+  const AtA = Array(8).fill(0).map(()=>Array(8).fill(0));
+  const Atb = Array(8).fill(0);
+  for(let i=0; i<8; i++){
+    for(let j=0; j<8; j++){
+      for(let k=0; k<2*N; k++) AtA[i][j] += A[k][i] * A[k][j];
+    }
+    for(let k=0; k<2*N; k++) Atb[i] += A[k][i] * b[k];
+  }
 
-    [A[c], A[maxR]] = [A[maxR], A[c]];
-    [b[c], b[maxR]] = [b[maxR], b[c]];
+  // Gaussian Elimination
+  for(let c=0; c<8; c++){
+    let maxR=c, maxV=Math.abs(AtA[c][c]);
+    for(let r=c+1; r<8; r++) if(Math.abs(AtA[r][c]) > maxV){ maxV=Math.abs(AtA[r][c]); maxR=r; }
+    if(maxV < 1e-10) return null; 
 
-    const div = A[c][c];
-    for (let j = c; j < 8; j++) A[c][j] /= div;
-    b[c] /= div;
+    [AtA[c], AtA[maxR]] = [AtA[maxR], AtA[c]];
+    [Atb[c], Atb[maxR]] = [Atb[maxR], Atb[c]];
 
-    for (let r = 0; r < 8; r++) {
-      if (r === c) continue;
-      const mult = A[r][c];
-      for (let j = c; j < 8; j++) A[r][j] -= mult * A[c][j];
-      b[r] -= mult * b[c];
+    const div = AtA[c][c];
+    for(let j=c; j<8; j++) AtA[c][j] /= div;
+    Atb[c] /= div;
+
+    for(let r=0; r<8; r++){
+      if(r===c) continue;
+      const mult = AtA[r][c];
+      for(let j=c; j<8; j++) AtA[r][j] -= mult * AtA[c][j];
+      Atb[r] -= mult * Atb[c];
     }
   }
 
-  const hn = [...b, 1]; // Normalized homography matrix
-
-  // 3. Denormalize matrix back to original pixel coordinates
+  const hn = [...Atb, 1];
+  
+  // 3. Denormalize matrix back to original coordinates
   const h = [
-    hn[0] * s1 / s2 + cx2 * hn[6] * s1,
-    hn[1] * s1 / s2 + cx2 * hn[7] * s1,
-    (-hn[0] * s1 * cx1 - hn[1] * s1 * cy1 + hn[2]) / s2 + cx2 * (-hn[6] * s1 * cx1 - hn[7] * s1 * cy1 + 1),
-    hn[3] * s1 / s2 + cy2 * hn[6] * s1,
-    hn[4] * s1 / s2 + cy2 * hn[7] * s1,
-    (-hn[3] * s1 * cx1 - hn[4] * s1 * cy1 + hn[5]) / s2 + cy2 * (-hn[6] * s1 * cx1 - hn[7] * s1 * cy1 + 1),
-    hn[6] * s1,
-    hn[7] * s1,
-    -hn[6] * s1 * cx1 - hn[7] * s1 * cy1 + 1
+    hn[0]*s1/s2 + cx2*hn[6]*s1,
+    hn[1]*s1/s2 + cx2*hn[7]*s1,
+    (-hn[0]*s1*cx1 - hn[1]*s1*cy1 + hn[2])/s2 + cx2*(-hn[6]*s1*cx1 - hn[7]*s1*cy1 + 1),
+    hn[3]*s1/s2 + cy2*hn[6]*s1,
+    hn[4]*s1/s2 + cy2*hn[7]*s1,
+    (-hn[3]*s1*cx1 - hn[4]*s1*cy1 + hn[5])/s2 + cy2*(-hn[6]*s1*cx1 - hn[7]*s1*cy1 + 1),
+    hn[6]*s1,
+    hn[7]*s1,
+    -hn[6]*s1*cx1 - hn[7]*s1*cy1 + 1
   ];
 
-  for (let i = 0; i < 9; i++) h[i] /= h[8];
+  for(let i=0;i<9;i++) h[i] /= h[8];
   return h;
 };
 
-const apH = (h, x, y) => { const w = h[6] * x + h[7] * y + h[8] || 1e-10; return [(h[0] * x + h[1] * y + h[2]) / w, (h[3] * x + h[4] * y + h[5]) / w]; };
+const apH=(h,x,y)=>{const w=h[6]*x+h[7]*y+h[8]||1e-10;return[(h[0]*x+h[1]*y+h[2])/w,(h[3]*x+h[4]*y+h[5])/w];};
 
-// ── RANSAC ─────────────────────────────────────────────────────────────────
-const doRansac = (p1, p2, thr = 5, its = 2500) => {
-  if (p1.length < 4) return null;
-  let bH = null, bN = 0, bMask = [];
-  const N = p1.length;
-  for (let it = 0; it < its; it++) {
-    const idx = [];
-    while (idx.length < 4) { const r = Math.floor(Math.random() * N); if (!idx.includes(r)) idx.push(r); }
-    const H = dlt4(idx.map(i => p1[i]), idx.map(i => p2[i]));
-    if (!H) continue;
-    let n = 0; const mask = new Array(N).fill(false);
-    for (let i = 0; i < N; i++) {
-      const [px, py] = apH(H, p1[i][0], p1[i][1]);
-      const dx = px - p2[i][0], dy = py - p2[i][1];
-      if (Math.sqrt(dx * dx + dy * dy) < thr) { mask[i] = true; n++; }
+const doRansac=(p1,p2,thr=5,its=2500)=>{
+  if(p1.length<4) return null;
+  let bH=null,bN=0,bMask=[];
+  const N=p1.length;
+  for(let it=0;it<its;it++){
+    const idx=[];
+    while(idx.length<4){const r=Math.floor(Math.random()*N);if(!idx.includes(r))idx.push(r);}
+    
+    // Find candidate model using 4 random points
+    const H=dltN(idx.map(i=>p1[i]),idx.map(i=>p2[i]));
+    if(!H) continue;
+    
+    let n=0; const mask=new Array(N).fill(false);
+    for(let i=0;i<N;i++){
+      const[px,py]=apH(H,p1[i][0],p1[i][1]);
+      const dx=px-p2[i][0],dy=py-p2[i][1];
+      if(Math.sqrt(dx*dx+dy*dy)<thr){mask[i]=true;n++;}
     }
-    if (n > bN) { bN = n; bH = H; bMask = mask; }
+    if(n>bN){bN=n;bH=H;bMask=mask;}
   }
-  return bH ? { H: bH, mask: bMask, inliers: bN } : null;
+  
+  // THE OPENCV MAGIC: Re-run Least Squares on ALL inliers to smooth pixel noise
+  if(bN>=4){
+    const inliers1=[], inliers2=[];
+    for(let i=0;i<N;i++){
+      if(bMask[i]){ inliers1.push(p1[i]); inliers2.push(p2[i]); }
+    }
+    const finalH = dltN(inliers1, inliers2);
+    if(finalH) bH = finalH;
+  }
+  
+  return bH?{H:bH,mask:bMask,inliers:bN}:null;
 };
 
 function warpImage(srcData, H_mat, dstW, dstH) {
