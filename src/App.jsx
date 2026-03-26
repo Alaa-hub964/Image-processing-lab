@@ -9,11 +9,11 @@ const MODULES = [
     topics:["Negative","Log Transform","Gamma","Contrast Stretch","Bit-plane Slicing","Thresholding","Sigmoid","Histogram Stretch"],
     theory:{ "Negative":"s=255-r. Inverts all intensities. Useful for enhancing white detail in dark regions.", "Log Transform":"s=c*log(1+r). Expands dark, compresses bright. Used for Fourier spectrum display.", "Gamma":"s=c*r^y. gamma<1 brightens, gamma>1 darkens. Controls gamma correction for displays.", "Contrast Stretch":"Maps [lo,hi] -> [0,255]. Linear enhancement without full equalization.", "Bit-plane Slicing":"Extracts individual bit planes 0-7. MSB carries most visual structure.", "Thresholding":"Binary: s=255 if r>=T else 0. Simplest segmentation.", "Sigmoid":"s=255/(1+e^(-k(r-128))). S-curve contrast enhancement.", "Histogram Stretch":"(r-min)/(max-min)*255. Global linear stretch to full dynamic range." }},
 
-  { id:"histogram",  icon:"📊", label:"Histogram Processing",               color:"#7209b7",
+  { id:"histogram",  icon:"📊", label:"Histogram Processing",             color:"#7209b7",
     topics:["Show Histogram","Histogram Equalization","CLAHE","Histogram Matching","PDF Plot","CDF Plot","Local Equalization","Gamma via CDF"],
     theory:{ "Histogram Equalization":"s_k=(L-1)*Sump(r_j). CDF-based remapping to uniform distribution.", "CLAHE":"Contrast Limited AHE. Clips histogram at limit before equalizing each tile. Prevents noise amplification.", "PDF Plot":"Normalized histogram p(r_k)=n_k/n. Probability density of pixel intensities.", "CDF Plot":"Cumulative sum of PDF. Used as transfer function in equalization.", "Local Equalization":"AHE: equalize independently in local tiles. Adapts to local contrast." }},
 
-  { id:"spatial",    icon:"🔲", label:"Spatial Filtering",                 color:"#3a0ca3",
+  { id:"spatial",    icon:"🔲", label:"Spatial Filtering",                color:"#3a0ca3",
     topics:["Mean Filter","Gaussian Filter","Median Filter","Laplacian","Sobel X","Sobel Y","Gradient Magnitude","Prewitt","Unsharp Masking","Emboss","Sharpen","Box Blur 5x5"],
     theory:{ "Mean Filter":"Average of kxk neighborhood. Removes Gaussian noise, blurs edges.", "Gaussian Filter":"Weighted G(x,y)=e^(-(x^2+y^2)/2sigma^2). Better edge preservation than mean.", "Median Filter":"Non-linear. Sorts neighborhood, picks middle. Best for salt-and-pepper noise.", "Laplacian":"Laplacianf=d2f/dx^2+d2f/dy^2. Isotropic 2nd derivative, highlights rapid changes.", "Unsharp Masking":"f_sharp=f+k*(f-f_blur). Amplifies high-frequency detail.", "Emboss":"Directional kernel. Highlights edges as raised surface with gray background." }},
 
@@ -21,12 +21,12 @@ const MODULES = [
     topics:["DFT Magnitude","DFT Phase","Ideal LP","Butterworth LP","Gaussian LP","Ideal HP","Butterworth HP","Gaussian HP","Band Reject","Band Pass","Homomorphic"],
     theory:{ "DFT":"F(u,v)=SumSumf(x,y)e^(-j2pi(ux/M+vy/N)). Decomposes image into frequency components.", "Ideal LP":"H=1 if D<=D0 else 0. Sharp cutoff causes Gibbs ringing in spatial domain.", "Butterworth LP":"H=1/(1+(D/D0)^2n). Smooth rolloff. Order n controls sharpness.", "Gaussian LP":"H=e^(-D^2/2D0^2). No ringing. Spatial equivalent also Gaussian.", "Homomorphic":"ln->FFT->(gammaH-gammaL)*H+gammaL->IFFT->exp. Normalizes illumination, enhances reflectance." }},
 
-  { id:"restoration",icon:"🔧", label:"Image Restoration",                color:"#4cc9f0",
+  { id:"restoration",icon:"🔧", label:"Image Restoration",               color:"#4cc9f0",
     topics:["Add Gaussian Noise","Add Salt & Pepper","Add Periodic Noise","Add Speckle","Denoise Mean","Denoise Median","Denoise Gaussian","Wiener Filter","Notch Filter","Sharpen Restore","Bilateral-like"],
     theory:{ "Gaussian Noise":"g=f+eta, eta~N(mu,sigma^2). Additive, spectrally flat. Removed by linear averaging.", "Salt & Pepper":"Random 0/255 pixels. Caused by transmission errors. Best: median filter.", "Periodic Noise":"Sinusoidal eta=A*sin(2pi(u0x+v0y)). Appears as spikes in DFT. Removed by notch filter.", "Wiener Filter":"H_hat*/(|H|^2+Sn/Sf). Minimizes MSE. Balances inverse filtering with noise smoothing.", "Notch Filter":"Rejects +/-(u0,v0) frequency pairs. Surgical removal of periodic noise." }},
 
   { id:"registration",icon:"🎯", label:"Geometric Transforms & Registration", color:"#06d6a0",
-    topics:["Unified Registration","Affine Transform","Projective Warp","Translation","Rotation","Scaling","Shear","Flip H","Flip V","Bilinear Interp"],
+    topics:["Upload & Match","Feature Detection","Keypoint Matching","Homography","Aligned Overlay","Difference Map","Affine Transform","Projective Warp","Translation","Rotation","Scaling","Shear","Flip H","Flip V","Bilinear Interp"],
     theory:{ "Harris Corner":"R=det(M)-k*trace^2(M). R>0: corner, R<0: edge, R~=0: flat region.", "Feature Matching":"Compare descriptors using SSD. Ratio test: accept if d1/d2<0.8.", "Homography":"3x3 matrix mapping plane->plane. 4+ point correspondences + RANSAC.", "Affine Transform":"6 DOF: translation+rotation+scale+shear. Preserves parallel lines.", "RANSAC":"Sample minimal set->fit model->count inliers. Robust to outliers up to 50%.", "Bilinear Interpolation":"Weighted average of 4 neighbors for sub-pixel positions. Smooth warping." }},
 
   { id:"color",      icon:"🎨", label:"Color Image Processing",           color:"#f77f00",
@@ -41,7 +41,7 @@ const MODULES = [
     topics:["Haar LL (Approx)","Haar LH (Horiz)","Haar HL (Vert)","Haar HH (Diag)","Soft Threshold","Hard Threshold","Multi-level Decomp","Wavelet Edge","Reconstruct","Wavelet Compress"],
     theory:{ "FWT":"Mallat: iteratively apply h (low) + g (high) + downsample. O(N) complexity.", "Decomposition":"Level: LL=approx, LH=horiz detail, HL=vert detail, HH=diag detail.", "Wavelet Denoising":"Decompose->threshold coefficients->reconstruct. Preserves edges unlike Gaussian.", "Haar":"h=[1,1]/sqrt2, g=[1,-1]/sqrt2. Simplest, discontinuous, computationally cheapest.", "Soft Threshold":"sign(x)*max(0,|x|-T). Shrinks coefficients toward zero. Smoother result." }},
 
-  { id:"compression",icon:"📦", label:"Image Compression",                color:"#ff6b35",
+  { id:"compression",icon:"📦", label:"Image Compression",               color:"#ff6b35",
     topics:["DCT 8x8 Blocks","Quantize HQ","Quantize LQ","JPEG Artifact Sim","Block Grid View","Bit Depth 4-bit","Bit Depth 2-bit","Chroma Subsampling","RLE Visualize","Compression Stats"],
     theory:{ "DCT":"8x8 block DCT in JPEG. Energy compacted to low-frequency top-left coefficients.", "Quantization":"Divide by Q matrix, round. Lossy step producing JPEG artifacts.", "Coding Redundancy":"Non-uniform probabilities -> Huffman assigns shorter codes to common symbols.", "Spatial Redundancy":"Adjacent pixels correlated. Exploited by predictive and transform coding.", "JPEG Artifacts":"Blocking, ringing, color smear. More visible at high compression ratios." }},
 
@@ -57,6 +57,7 @@ const MODULES = [
     topics:["Harris Corners","Shi-Tomasi","FAST Detect","DoG (SIFT-like)","Gradient Mag","Gradient Dir","HOG Cells","LBP Texture","Dense Grid","ORB-like Keypoints","Feature Heatmap"],
     theory:{ "Harris":"M=Sumw[Ix^2,IxIy;IxIy,Iy^2]. R=det-k*trace^2. Corner if R>threshold.", "SIFT":"DoG extrema->orientation->128-D gradient histogram. Scale+rotation invariant.", "ORB":"Oriented FAST + Rotated BRIEF. 256-bit binary. Patent-free. 100x faster than SIFT.", "HOG":"8x8 cells -> 9-bin orientation histograms -> L2-normalize in 16x16 blocks.", "LBP":"8-neighbor binary label against center. Rotation-invariant. Texture descriptor." }},
 
+
   { id:"morphology", icon:"🔬", label:"Morphological Operations",       color:"#c77dff",
     topics:["Erosion","Dilation","Opening","Closing","Morphological Gradient","Top Hat","Black Hat","Thinning","Thickening","Hit-or-Miss"],
     theory:{ "Erosion":"Shrinks bright regions. Removes small objects, protrusions, noise. SE shape determines erosion direction.", "Dilation":"Expands bright regions. Fills holes, connects components. Dual of erosion.", "Opening":"Erosion then dilation. Removes small bright spots, smooths contour without changing area much.", "Closing":"Dilation then erosion. Fills small holes, joins nearby components.", "Morphological Gradient":"Dilation - Erosion. Produces thick edges/boundaries. Detects transitions.", "Top Hat":"Original - Opening. Extracts bright features smaller than SE on uneven background.", "Black Hat":"Closing - Original. Extracts dark features and holes smaller than SE." }},
@@ -70,7 +71,7 @@ const MODULES = [
     theory:{ "Optical Flow":"Apparent pixel motion between frames. Constraint: I_x*u + I_y*v + I_t = 0. Ill-posed without additional assumption.", "Lucas-Kanade":"Assumes constant flow in local window. Solves 2x2 least-squares system. Fast, but fails at motion boundaries.", "Horn-Schunck":"Global smoothness regularization. Minimizes data+smoothness terms. Dense flow but blurs motion edges.", "Temporal Difference":"I(t)-I(t-1). Simple motion detector. Simulated here via blurred/original difference." }},
 
   { id:"matching",   icon:"🔗", label:"Feature Matching & Model Fitting", color:"#e9c46a",
-    topics:["BF Match Viz","Ratio Test Viz","RANSAC Demo","Homography Warp","Similarity Map","Corner Response","Distance Map","Edge+Corner","Template Match","KD-tree Sim","LSH Sim"],
+    topics:["Upload & Match","BF Match Viz","Ratio Test Viz","RANSAC Demo","Homography Warp","Similarity Map","Corner Response","Distance Map","Edge+Corner","Template Match","KD-tree Sim","LSH Sim"],
     theory:{ "BF Matching":"Compare all descriptor pairs. O(N^2). Exact. Use Hamming for binary, L2 for float.", "Ratio Test":"Accept if d1/d2<0.7-0.8. Rejects ambiguous matches. Lowe's key insight.", "RANSAC":"Random sample->fit->inliers->repeat. Handles up to 50% outliers.", "KD-Tree":"Binary space partition. O(log N) approx NN. Best for d<20 dimensions.", "LSH":"Hash similar items to same bucket. O(1) approx NN for high-dimensional binary descriptors.", "EMD":"Earth Mover's Distance. Min transport cost between distributions." }},
 ];
 
@@ -91,8 +92,11 @@ function convolve(gray, W, H, kernel) {
   return res;
 }
 
+
+// Safe min/max for large arrays (avoids call stack overflow from spread)
 function arrMin(a){let m=Infinity;for(let i=0;i<a.length;i++) if(a[i]<m) m=a[i];return m;}
 function arrMax(a){let m=-Infinity;for(let i=0;i<a.length;i++) if(a[i]>m) m=a[i];return m;}
+function arrMinFiltered(a,fn){let m=Infinity;for(let i=0;i<a.length;i++){const v=a[i];if(fn(v)&&v<m)m=v;}return m;}
 
 function processImg(src, modId, topic, params={}) {
   const {width:W, height:H, data} = src;
@@ -115,6 +119,7 @@ function processImg(src, modId, topic, params={}) {
   // -- INTENSITY --
   if (modId==="intensity") {
     const g=params.gamma||1, T=params.thresh||128, plane=params.plane||7, k=params.k||0.1;
+    // Pre-compute for Histogram Stretch — must be OUTSIDE the pixel loop
     const _hsMin=arrMin(gray),_hsMax=arrMax(gray),_hsRng=_hsMax-_hsMin;
     for(let i=0;i<N;i++){
       let r=data[i*4],g2=data[i*4+1],b=data[i*4+2],v;
@@ -135,7 +140,9 @@ function processImg(src, modId, topic, params={}) {
     const hist=new Array(256).fill(0);
     for(let i=0;i<N;i++) hist[Math.round(gray[i])]++;
     if(topic==="Show Histogram"||topic==="PDF Plot"){
+      // Show grayscale with histogram overlay baked in
       for(let i=0;i<N;i++){const v=Math.round(gray[i]);out[i*4]=out[i*4+1]=out[i*4+2]=v;out[i*4+3]=255;}
+      // Draw histogram bars at bottom of image
       const maxH=arrMax(hist)||1;
       const barH=Math.min(H/3,80);
       for(let x=0;x<W;x++){
@@ -221,6 +228,7 @@ function processImg(src, modId, topic, params={}) {
     const D0=params.d0||40,n=params.n||2;
     const cx=W/2,cy=H/2;
     if(topic==="DFT Magnitude"||topic==="DFT Phase"){
+      // Simulate DFT-like visualization using spatial frequency patterns
       for(let y=0;y<H;y++) for(let x=0;x<W;x++){
         const u=((x-cx)/W*20),v2=((y-cy)/H*20);
         const re=gray[y*W+x]*Math.cos(2*Math.PI*(u*x/W+v2*y/H));
@@ -292,7 +300,8 @@ function processImg(src, modId, topic, params={}) {
 
   // -- REGISTRATION / GEOMETRIC --
   else if(modId==="registration"){
-    if(["Unified Registration"].includes(topic)){
+    if(["Upload & Match","Feature Detection","Keypoint Matching","Homography","Aligned Overlay","Difference Map"].includes(topic)){
+      // These are handled by the special registration UI  -  return grayscale passthrough
       for(let i=0;i<N;i++){out[i*4]=out[i*4+1]=out[i*4+2]=Math.round(gray[i]);out[i*4+3]=255;}
       return new ImageData(out,W,H);
     }
@@ -327,6 +336,7 @@ function processImg(src, modId, topic, params={}) {
 
   // -- COLOR --
   else if(modId==="color"){
+    // Pre-compute Color Equalization LUT and HSV V values — must be OUTSIDE pixel loop
     const _ceqHist=new Array(256).fill(0);for(let j=0;j<N;j++) _ceqHist[Math.round(gray[j])]++;
     let _ceqCs=0;const _ceqLut=new Uint8Array(256);for(let k=0;k<256;k++){_ceqCs+=_ceqHist[k];_ceqLut[k]=Math.round(_ceqCs/N*255);}
     const _ceqV=new Float32Array(N);for(let j=0;j<N;j++){const rn=data[j*4]/255,gn=data[j*4+1]/255,bn=data[j*4+2]/255;_ceqV[j]=Math.max(rn,gn,bn);}
@@ -362,259 +372,601 @@ function processImg(src, modId, topic, params={}) {
     }
   }
 
-  // -- WAVELETS, MEDICAL, COMPRESSION, ETC.
-  else {
-      for(let i=0;i<N;i++){out[i*4]=out[i*4+1]=out[i*4+2]=Math.round(gray[i]);out[i*4+3]=255;}
+  // -- MEDICAL --
+  else if(modId==="medical"){
+    const applyWin=(wc,ww)=>{for(let i=0;i<N;i++){const hu=(gray[i]-128)*10,v=Math.max(0,Math.min(255,Math.round((hu-wc+ww/2)/ww*255)));out[i*4]=out[i*4+1]=out[i*4+2]=v;out[i*4+3]=255;}};
+    if(topic==="Grayscale View"){for(let i=0;i<N;i++){const v=Math.round(gray[i]);out[i*4]=out[i*4+1]=out[i*4+2]=v;out[i*4+3]=255;}}
+    else if(topic==="Bone Window") applyWin(400,1500);
+    else if(topic==="Lung Window") applyWin(-600,1500);
+    else if(topic==="Brain Window") applyWin(40,80);
+    else if(topic==="Soft Tissue") applyWin(50,350);
+    else if(topic==="CT Simulate"){for(let i=0;i<N;i++){const v=Math.round(Math.pow(gray[i]/255,0.7)*255);out[i*4]=out[i*4+1]=out[i*4+2]=v;out[i*4+3]=255;}}
+    else if(topic==="MRI Noise"){for(let i=0;i<N;i++){const n2=(Math.random()-0.5)*30;for(let c=0;c<3;c++) out[i*4+c]=Math.max(0,Math.min(255,data[i*4+c]+n2));out[i*4+3]=255;}}
+    else if(topic==="Medical Denoise"){const res=convolve(gray,W,H,GAUSS);setG(res);}
+    else if(topic==="Tissue Threshold"){for(let i=0;i<N;i++){const v=(gray[i]>80&&gray[i]<180)?255:0;out[i*4]=out[i*4+1]=out[i*4+2]=v;out[i*4+3]=255;}}
+    else if(topic==="Edge Enhance"){const res=convolve(gray,W,H,[[0,-1,0],[-1,5,-1],[0,-1,0]]);setG(res);}
+    else if(topic==="Pseudo HU Color"){
+      for(let i=0;i<N;i++){
+        const t=gray[i]/255;
+        if(t<0.25){out[i*4]=0;out[i*4+1]=0;out[i*4+2]=Math.round(t/0.25*255);}
+        else if(t<0.5){out[i*4]=0;out[i*4+1]=Math.round((t-0.25)/0.25*255);out[i*4+2]=255;}
+        else if(t<0.75){out[i*4]=Math.round((t-0.5)/0.25*255);out[i*4+1]=255;out[i*4+2]=255-Math.round((t-0.5)/0.25*255);}
+        else{out[i*4]=255;out[i*4+1]=255-Math.round((t-0.75)/0.25*255);out[i*4+2]=0;}
+        out[i*4+3]=255;
+      }
+    } else if(topic==="Vessel Enhance"){
+      const gx=convolve(gray,W,H,KX),gy=convolve(gray,W,H,KY);
+      for(let i=0;i<N;i++){const mag=Math.min(255,Math.sqrt(gx[i]*gx[i]+gy[i]*gy[i]));const v=gray[i]>100?Math.round(mag):0;out[i*4]=v;out[i*4+1]=Math.round(gray[i]*0.3);out[i*4+2]=0;out[i*4+3]=255;}
+    }
   }
+
+  // -- WAVELETS --
+  else if(modId==="wavelets"){
+    const w2=Math.floor(W/2),h2=Math.floor(H/2);
+    const LL=new Float32Array(w2*h2),LH=new Float32Array(w2*h2),HL=new Float32Array(w2*h2),HH=new Float32Array(w2*h2);
+    for(let y=0;y<h2;y++) for(let x=0;x<w2;x++){
+      const v00=gray[y*2*W+x*2],v01=gray[y*2*W+Math.min(x*2+1,W-1)],v10=gray[Math.min(y*2+1,H-1)*W+x*2],v11=gray[Math.min(y*2+1,H-1)*W+Math.min(x*2+1,W-1)];
+      LL[y*w2+x]=(v00+v01+v10+v11)/2;LH[y*w2+x]=(v00-v01+v10-v11)/2;
+      HL[y*w2+x]=(v00+v01-v10-v11)/2;HH[y*w2+x]=(v00-v01-v10+v11)/2;
+    }
+    const upscale=(band,bw,bh)=>{
+      const mn2=arrMin(band),mx2=arrMax(band),rng2=mx2-mn2||1;
+      for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+        const bx=Math.min(Math.floor(x/W*bw),bw-1),by=Math.min(Math.floor(y/H*bh),bh-1);
+        const v=Math.round((band[by*bw+bx]-mn2)/rng2*255);
+        out[(y*W+x)*4]=out[(y*W+x)*4+1]=out[(y*W+x)*4+2]=v;out[(y*W+x)*4+3]=255;
+      }
+    };
+    const T=params.wavThresh||20;
+    if(topic==="Haar LL (Approx)") upscale(LL,w2,h2);
+    else if(topic==="Haar LH (Horiz)") upscale(LH,w2,h2);
+    else if(topic==="Haar HL (Vert)") upscale(HL,w2,h2);
+    else if(topic==="Haar HH (Diag)") upscale(HH,w2,h2);
+    else if(topic==="Soft Threshold"){for(let i=0;i<N;i++){const v=Math.max(0,Math.min(255,Math.round(gray[i])));const s2=Math.sign(v-128)*Math.max(0,Math.abs(v-128)-T)+128;out[i*4]=out[i*4+1]=out[i*4+2]=Math.round(s2);out[i*4+3]=255;}}
+    else if(topic==="Hard Threshold"){for(let i=0;i<N;i++){const v=gray[i];const s2=Math.abs(v-128)<T?128:v;out[i*4]=out[i*4+1]=out[i*4+2]=Math.round(s2);out[i*4+3]=255;}}
+    else if(topic==="Multi-level Decomp"){
+      // Pre-compute LL min/max ONCE — must not be inside the pixel loop
+      const _llMin=arrMin(LL),_llMax=arrMax(LL),_llRng=_llMax-_llMin||1;
+      for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+        const inLL=x<w2&&y<h2,inLH=x>=w2&&y<h2,inHL=x<w2&&y>=h2;
+        let v=Math.round(gray[y*W+x]);
+        if(inLL){const bx=Math.floor(x/w2*w2),by=Math.floor(y/h2*h2);const ll2=LL[Math.min(by,h2-1)*w2+Math.min(bx,w2-1)];v=Math.round((ll2-_llMin)/_llRng*255);}
+        else if(inLH){const bx=Math.min(x-w2,w2-1),by=Math.min(y,h2-1);v=Math.min(255,Math.round(Math.abs(LH[by*w2+bx])*3));}
+        else if(inHL){const bx=Math.min(x,w2-1),by=Math.min(y-h2,h2-1);v=Math.min(255,Math.round(Math.abs(HL[by*w2+bx])*3));}
+        else{const bx=Math.min(x-w2,w2-1),by=Math.min(y-h2,h2-1);v=Math.min(255,Math.round(Math.abs(HH[by*w2+bx])*3));}
+        out[(y*W+x)*4]=out[(y*W+x)*4+1]=out[(y*W+x)*4+2]=v;out[(y*W+x)*4+3]=255;
+      }
+    } else if(topic==="Wavelet Edge"){
+      for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+        const bx=Math.min(Math.floor(x/W*w2),w2-1),by=Math.min(Math.floor(y/H*h2),h2-1);
+        const edge=Math.min(255,Math.round(Math.sqrt(LH[by*w2+bx]*LH[by*w2+bx]+HL[by*w2+bx]*HL[by*w2+bx])*3));
+        out[(y*W+x)*4]=edge;out[(y*W+x)*4+1]=Math.round(edge*0.5);out[(y*W+x)*4+2]=0;out[(y*W+x)*4+3]=255;
+      }
+    } else if(topic==="Reconstruct"){const res=convolve(gray,W,H,GAUSS);setG(res);}
+    else if(topic==="Wavelet Compress"){
+      const q=params.thresh||32;
+      for(let i=0;i<N;i++){const v=Math.round(Math.round(gray[i]/q)*q);out[i*4]=out[i*4+1]=out[i*4+2]=v;out[i*4+3]=255;}
+    }
+  }
+
+  // -- COMPRESSION --
+  else if(modId==="compression"){
+    const bs=8;
+    if(topic==="DCT 8x8 Blocks"){
+      for(let by=0;by<Math.ceil(H/bs);by++) for(let bx2=0;bx2<Math.ceil(W/bs);bx2++){
+        const blk=[];
+        for(let y=0;y<bs;y++) for(let x=0;x<bs;x++){const px=Math.min(bx2*bs+x,W-1),py=Math.min(by*bs+y,H-1);blk.push(gray[py*W+px]-128);}
+        const dct=new Float32Array(64);
+        for(let u=0;u<8;u++) for(let v2=0;v2<8;v2++){let sum2=0;const cu=u===0?1/Math.SQRT2:1,cv2=v2===0?1/Math.SQRT2:1;for(let x=0;x<8;x++) for(let y=0;y<8;y++) sum2+=blk[y*8+x]*Math.cos((2*x+1)*u*Math.PI/16)*Math.cos((2*y+1)*v2*Math.PI/16);dct[v2*8+u]=0.25*cu*cv2*sum2;}
+        const mn2=arrMin(dct),mx2=arrMax(dct),rng2=mx2-mn2||1;
+        for(let y=0;y<bs;y++) for(let x=0;x<bs;x++){const px=Math.min(bx2*bs+x,W-1),py=Math.min(by*bs+y,H-1);const v=Math.round((dct[y*8+x]-mn2)/rng2*255);out[(py*W+px)*4]=out[(py*W+px)*4+1]=out[(py*W+px)*4+2]=v;out[(py*W+px)*4+3]=255;}
+      }
+    } else if(topic==="Quantize HQ"){for(let i=0;i<N;i++){const v=Math.round(Math.round(gray[i]/8)*8);out[i*4]=out[i*4+1]=out[i*4+2]=v;out[i*4+3]=255;}}
+    else if(topic==="Quantize LQ"){for(let i=0;i<N;i++){const v=Math.round(Math.round(gray[i]/32)*32);out[i*4]=out[i*4+1]=out[i*4+2]=v;out[i*4+3]=255;}}
+    else if(topic==="JPEG Artifact Sim"){
+      for(let by=0;by<Math.ceil(H/bs);by++) for(let bx2=0;bx2<Math.ceil(W/bs);bx2++){
+        let avg=0,cnt2=0;for(let y=0;y<bs;y++) for(let x=0;x<bs;x++){const px=Math.min(bx2*bs+x,W-1),py=Math.min(by*bs+y,H-1);avg+=gray[py*W+px];cnt2++;}avg=Math.round(avg/cnt2);
+        for(let y=0;y<bs;y++) for(let x=0;x<bs;x++){const px=Math.min(bx2*bs+x,W-1),py=Math.min(by*bs+y,H-1);const v=Math.round(gray[py*W+px]*0.4+avg*0.6);out[(py*W+px)*4]=out[(py*W+px)*4+1]=out[(py*W+px)*4+2]=v;out[(py*W+px)*4+3]=255;}
+      }
+    } else if(topic==="Block Grid View"){
+      for(let i=0;i<N;i++){const x=i%W,y=Math.floor(i/W),onB=(x%bs===0||y%bs===0);out[i*4]=onB?255:Math.round(gray[i]);out[i*4+1]=onB?80:Math.round(gray[i]);out[i*4+2]=onB?80:Math.round(gray[i]);out[i*4+3]=255;}
+    } else if(topic==="Bit Depth 4-bit"){for(let i=0;i<N;i++){const v=Math.round(Math.round(gray[i]/16)*16);out[i*4]=out[i*4+1]=out[i*4+2]=v;out[i*4+3]=255;}}
+    else if(topic==="Bit Depth 2-bit"){for(let i=0;i<N;i++){const v=Math.round(Math.round(gray[i]/64)*64);out[i*4]=out[i*4+1]=out[i*4+2]=v;out[i*4+3]=255;}}
+    else if(topic==="Chroma Subsampling"){for(let i=0;i<N;i++){const x=i%W,srcX=x%2===0?x:x-1,si=Math.floor(i/W)*W+srcX;out[i*4]=data[i*4];out[i*4+1]=data[si*4+1];out[i*4+2]=data[si*4+2];out[i*4+3]=255;}}
+    else if(topic==="RLE Visualize"){
+      let rStart=0,rVal=Math.round(gray[0]);
+      for(let i=0;i<=N;i++){const v=i<N?Math.round(gray[i]):rVal+1;if(v!==rVal||i===N){const hue=(rStart/N)*360;const r2=Math.round(128+64*Math.sin(hue*Math.PI/180)),g2=Math.round(128+64*Math.sin((hue+120)*Math.PI/180)),b2=Math.round(128+64*Math.sin((hue+240)*Math.PI/180));for(let j=rStart;j<i;j++){out[j*4]=r2;out[j*4+1]=g2;out[j*4+2]=b2;out[j*4+3]=255;}rStart=i;rVal=v;}}
+    } else if(topic==="Compression Stats"){
+      const q=16;let mse=0;
+      for(let i=0;i<N;i++){const orig=gray[i],comp=Math.round(orig/q)*q;mse+=((orig-comp)*(orig-comp));const v=comp;out[i*4]=out[i*4+1]=out[i*4+2]=v;out[i*4+3]=255;}
+    }
+  }
+
+  // -- SEGMENTATION --
+  else if(modId==="segmentation"){
+    const T=params.thresh||128;
+    if(topic==="Global Threshold"){for(let i=0;i<N;i++){const v=gray[i]>=T?255:0;out[i*4]=out[i*4+1]=out[i*4+2]=v;out[i*4+3]=255;}}
+    else if(topic==="Otsu Method"){
+      const hist2=new Array(256).fill(0);for(let i=0;i<N;i++) hist2[Math.round(gray[i])]++;
+      let bestT=0,bestSig=0,sum2=0;for(let k=0;k<256;k++) sum2+=k*hist2[k];
+      let w0=0,sumB=0;for(let t=0;t<256;t++){w0+=hist2[t]/N;const w1=1-w0;if(!w0||!w1) continue;sumB+=t*hist2[t]/N;const mu0=sumB/(w0||1),mu1=(sum2/N-sumB)/(w1||1),sig=w0*w1*((mu0-mu1)*(mu0-mu1));if(sig>bestSig){bestSig=sig;bestT=t;}}
+      for(let i=0;i<N;i++){const v=gray[i]>=bestT?255:0;out[i*4]=out[i*4+1]=out[i*4+2]=v;out[i*4+3]=255;}
+    } else if(topic==="Adaptive Threshold"){
+      const pad=12;for(let y=0;y<H;y++) for(let x=0;x<W;x++){let sum2=0,cnt2=0;for(let dy=-pad;dy<=pad;dy++) for(let dx=-pad;dx<=pad;dx++){const px=Math.min(Math.max(x+dx,0),W-1),py=Math.min(Math.max(y+dy,0),H-1);sum2+=gray[py*W+px];cnt2++;}const v=gray[y*W+x]>=sum2/cnt2-5?255:0;out[(y*W+x)*4]=out[(y*W+x)*4+1]=out[(y*W+x)*4+2]=v;out[(y*W+x)*4+3]=255;}
+    } else if(topic==="Sobel Edges"){const gx=convolve(gray,W,H,KX),gy=convolve(gray,W,H,KY);for(let i=0;i<N;i++){const v=Math.min(255,Math.round(Math.sqrt(gx[i]*gx[i]+gy[i]*gy[i])));out[i*4]=out[i*4+1]=out[i*4+2]=v;out[i*4+3]=255;}}
+    else if(topic==="Laplacian Edges"){const res=convolve(gray,W,H,[[0,-1,0],[-1,4,-1],[0,-1,0]]);for(let i=0;i<N;i++){const v=Math.min(255,Math.abs(Math.round(res[i])));out[i*4]=out[i*4+1]=out[i*4+2]=v;out[i*4+3]=255;}}
+    else if(topic==="Canny-like"||topic==="Gradient + NMS"){
+      const gx=convolve(gray,W,H,KX),gy=convolve(gray,W,H,KY);
+      const mag=new Float32Array(N),dir=new Float32Array(N);
+      for(let i=0;i<N;i++){mag[i]=Math.sqrt(gx[i]*gx[i]+gy[i]*gy[i]);dir[i]=Math.atan2(gy[i],gx[i]);}
+      for(let y=1;y<H-1;y++) for(let x=1;x<W-1;x++){
+        const d=((dir[y*W+x]*4/Math.PI)+4)%4;let n1=0,n2=0;
+        if(d<0.5||d>=3.5){n1=mag[y*W+x-1];n2=mag[y*W+x+1];}
+        else if(d<1.5){n1=mag[(y-1)*W+x+1];n2=mag[(y+1)*W+x-1];}
+        else if(d<2.5){n1=mag[(y-1)*W+x];n2=mag[(y+1)*W+x];}
+        else{n1=mag[(y-1)*W+x-1];n2=mag[(y+1)*W+x+1];}
+        const v=(mag[y*W+x]>=n1&&mag[y*W+x]>=n2)?Math.min(255,Math.round(mag[y*W+x])):0;
+        out[(y*W+x)*4]=out[(y*W+x)*4+1]=out[(y*W+x)*4+2]=v;out[(y*W+x)*4+3]=255;
+      }
+    } else if(topic==="Region Color"){
+      for(let i=0;i<N;i++){const v=gray[i];if(v>200){out[i*4]=255;out[i*4+1]=80;out[i*4+2]=80;}else if(v>128){out[i*4]=80;out[i*4+1]=255;out[i*4+2]=80;}else if(v>64){out[i*4]=80;out[i*4+1]=80;out[i*4+2]=255;}else{out[i*4]=200;out[i*4+1]=200;out[i*4+2]=0;}out[i*4+3]=255;}
+    } else if(topic==="K-means 2"||topic==="K-means 4"){
+      const k=topic==="K-means 2"?2:4;let centers=[...Array(k)].map((_,i2)=>30+i2*(200/k));
+      for(let iter=0;iter<15;iter++){const sums=new Array(k).fill(0),cnts=new Array(k).fill(0);for(let i2=0;i2<N;i2++){let best=0,bd=Infinity;centers.forEach((c,j)=>{const d=Math.abs(gray[i2]-c);if(d<bd){bd=d;best=j;}});sums[best]+=gray[i2];cnts[best]++;}centers=centers.map((c,j)=>cnts[j]>0?sums[j]/cnts[j]:c);}
+      const cols=[[255,60,60],[60,255,60],[60,60,255],[255,255,60],[255,60,255],[60,255,255]];
+      for(let i2=0;i2<N;i2++){let best=0,bd=Infinity;centers.forEach((c,j)=>{const d=Math.abs(gray[i2]-c);if(d<bd){bd=d;best=j;}});out[i2*4]=cols[best][0];out[i2*4+1]=cols[best][1];out[i2*4+2]=cols[best][2];out[i2*4+3]=255;}
+    } else if(topic==="Hough Viz"){
+      const gx=convolve(gray,W,H,KX),gy=convolve(gray,W,H,KY);
+      for(let i=0;i<N;i++){const mag2=Math.sqrt(gx[i]*gx[i]+gy[i]*gy[i]),angle=Math.atan2(gy[i],gx[i]);const v=Math.min(255,Math.round(mag2));out[i*4]=Math.round((angle+Math.PI)/(2*Math.PI)*255*2)%255;out[i*4+1]=v;out[i*4+2]=255-v;out[i*4+3]=255;}
+    } else if(topic==="Watershed Sim"){
+      const hist2=new Array(256).fill(0);for(let i=0;i<N;i++) hist2[Math.round(gray[i])]++;
+      let bestT2=0,bestSig2=0,sum3=0;for(let k=0;k<256;k++) sum3+=k*hist2[k];
+      let w0b=0,sumB2=0;for(let t=0;t<256;t++){w0b+=hist2[t]/N;const w1b=1-w0b;if(!w0b||!w1b) continue;sumB2+=t*hist2[t]/N;const mu0b=sumB2/(w0b||1),mu1b=(sum3/N-sumB2)/(w1b||1),sig=w0b*w1b*((mu0b-mu1b)*(mu0b-mu1b));if(sig>bestSig2){bestSig2=sig;bestT2=t;}}
+      // Pre-compute convolutions ONCE outside the pixel loop
+      const _wsgx=convolve(gray,W,H,KX),_wsgy=convolve(gray,W,H,KY);
+      for(let i=0;i<N;i++){const v=gray[i]>=bestT2?255:0;const mag2=Math.min(255,Math.sqrt(_wsgx[i]*_wsgx[i]+_wsgy[i]*_wsgy[i]));out[i*4]=v>128?255:Math.round(mag2);out[i*4+1]=Math.round(gray[i]*0.5);out[i*4+2]=v>128?0:255;out[i*4+3]=255;}
+    }
+  }
+
+  // -- REPRESENTATION --
+  else if(modId==="representation"){
+    if(topic==="Boundary Extract"){
+      const bin=gray.map(v=>v>128?1:0);
+      for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+        let isBound=false;if(bin[y*W+x]){for(let dy=-1;dy<=1&&!isBound;dy++) for(let dx=-1;dx<=1;dx++){const nx=x+dx,ny=y+dy;if(nx>=0&&nx<W&&ny>=0&&ny<H&&!bin[ny*W+nx]){isBound=true;}}}
+        out[(y*W+x)*4]=isBound?255:0;out[(y*W+x)*4+1]=isBound?100:0;out[(y*W+x)*4+2]=0;out[(y*W+x)*4+3]=255;
+      }
+    } else if(topic==="Skeleton"){const res=convolve(gray,W,H,[[0,-1,0],[-1,4,-1],[0,-1,0]]);for(let i=0;i<N;i++){const v=Math.abs(res[i])>25?255:0;out[i*4]=v;out[i*4+1]=v;out[i*4+2]=v;out[i*4+3]=255;}}
+    else if(topic==="Distance Transform"){
+      const bin2=gray.map(v=>v>128?0:Infinity);
+      for(let y=0;y<H;y++) for(let x=0;x<W;x++){if(bin2[y*W+x]===0) continue;let minD=Infinity;for(let r=1;r<20&&minD===Infinity;r++) for(let dy=-r;dy<=r&&minD===Infinity;dy++) for(let dx=-r;dx<=r;dx++){const nx=x+dx,ny=y+dy;if(nx>=0&&nx<W&&ny>=0&&ny<H&&gray[ny*W+nx]<=128){minD=Math.sqrt((dx*dx)+(dy*dy));break;}}bin2[y*W+x]=Math.min(minD,20);}
+      let mx2=0;for(let i=0;i<N;i++){if(isFinite(bin2[i])&&bin2[i]>mx2)mx2=bin2[i];}mx2=mx2||1;
+      for(let i=0;i<N;i++){const v=Math.round((bin2[i]||0)/mx2*255);out[i*4]=v;out[i*4+1]=Math.round(255-v);out[i*4+2]=0;out[i*4+3]=255;}
+    } else if(topic==="Convex Hull Viz"){for(let i=0;i<N;i++){const x=i%W,y=Math.floor(i/W),t=(x/W+y/H)/2;out[i*4]=Math.round(gray[i]*t);out[i*4+1]=Math.round(gray[i]*(1-t));out[i*4+2]=Math.round(gray[i]*0.5);out[i*4+3]=255;}}
+    else if(topic==="Moment Map"){let m00=0,m10=0,m01=0;for(let y=0;y<H;y++) for(let x=0;x<W;x++){const v=gray[y*W+x]/255;m00+=v;m10+=x*v;m01+=y*v;}const cx2=m00>0?m10/m00:W/2,cy2=m00>0?m01/m00:H/2;for(let i=0;i<N;i++){const x=i%W,y=Math.floor(i/W),d=Math.sqrt((x-cx2)*(x-cx2)+(y-cy2)*(y-cy2));out[i*4]=Math.round(gray[i]);out[i*4+1]=Math.round(gray[i]);out[i*4+2]=Math.round(gray[i]);if(d<5){out[i*4]=255;out[i*4+1]=0;out[i*4+2]=0;}out[i*4+3]=255;}}
+    else if(topic==="GLCM Texture"){
+      const GLCM=new Float32Array(256*256);for(let y=0;y<H;y++) for(let x=0;x<W-1;x++){const a=Math.round(gray[y*W+x]),b=Math.round(gray[y*W+x+1]);GLCM[a*256+b]++;GLCM[b*256+a]++;}
+      const maxG=arrMax(GLCM)||1;for(let i=0;i<N;i++){const gv=Math.round(gray[i]);let energy=0;for(let j=Math.max(0,gv-10);j<Math.min(256,gv+10);j++) energy+=GLCM[gv*256+j];const v=Math.min(255,Math.round(energy/maxG*5000));out[i*4]=v;out[i*4+1]=Math.round(gray[i]);out[i*4+2]=255-v;out[i*4+3]=255;}
+    } else if(topic==="Region Props"){for(let i=0;i<N;i++){const x=i%W,y=Math.floor(i/W),d=Math.sqrt(((x-W/2)*(x-W/2))+((y-H/2)*(y-H/2)))/(Math.min(W,H)/2);const v=Math.round(gray[i]*(1-d*0.4));out[i*4]=v;out[i*4+1]=Math.round(v*(1-d));out[i*4+2]=Math.round(255*d);out[i*4+3]=255;}}
+    else if(topic==="Zernike Viz"){for(let i=0;i<N;i++){const x=(i%W-W/2)/(W/2),y=(Math.floor(i/W)-H/2)/(H/2),r=Math.sqrt((x*x)+(y*y)),theta=Math.atan2(y,x);const v=Math.round(Math.abs(Math.cos(3*theta)*Math.exp(-(r*r)))*255);out[i*4]=v;out[i*4+1]=Math.round(gray[i]*0.5);out[i*4+2]=255-v;out[i*4+3]=255;}}
+    else if(topic==="Fourier Desc Viz"){const gx=convolve(gray,W,H,KX),gy=convolve(gray,W,H,KY);for(let i=0;i<N;i++){const mag=Math.min(255,Math.sqrt(gx[i]*gx[i]+gy[i]*gy[i]));out[i*4]=Math.round(mag);out[i*4+1]=Math.round(gray[i]*0.3);out[i*4+2]=Math.round(255-mag);out[i*4+3]=255;}}
+    else if(topic==="Chain Code Viz"){
+      const bin3=gray.map(v=>v>128?1:0);const dirs=[[1,0],[1,-1],[0,-1],[-1,-1],[-1,0],[-1,1],[0,1],[1,1]];
+      for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+        if(!bin3[y*W+x]){out[(y*W+x)*4]=0;out[(y*W+x)*4+1]=0;out[(y*W+x)*4+2]=0;out[(y*W+x)*4+3]=255;continue;}
+        let code=0;for(let d=0;d<8;d++){const nx=x+dirs[d][0],ny=y+dirs[d][1];if(nx>=0&&nx<W&&ny>=0&&ny<H&&bin3[ny*W+nx]) code=d;}
+        const hue=code/8*360;out[(y*W+x)*4]=Math.round(128+64*Math.sin(hue*Math.PI/180));out[(y*W+x)*4+1]=Math.round(128+64*Math.sin((hue+120)*Math.PI/180));out[(y*W+x)*4+2]=Math.round(128+64*Math.sin((hue+240)*Math.PI/180));out[(y*W+x)*4+3]=255;
+      }
+    }
+  }
+
+  // -- FEATURES --
+  else if(modId==="features"){
+    const Ix=convolve(gray,W,H,KX),Iy=convolve(gray,W,H,KY);
+    if(topic==="Harris Corners"||topic==="Shi-Tomasi"){
+      const R=new Float32Array(N);for(let i=0;i<N;i++){const A=Ix[i]*Ix[i],B=Iy[i]*Iy[i],C=Ix[i]*Iy[i];R[i]=A*B-(C*C)-0.05*((A+B)*(A+B));}
+      let maxR=0;for(let i=0;i<N;i++){const av=Math.abs(R[i]);if(av>maxR)maxR=av;}maxR=maxR||1;
+      for(let i=0;i<N;i++){out[i*4]=Math.round(data[i*4]);out[i*4+1]=Math.round(data[i*4+1]);out[i*4+2]=Math.round(data[i*4+2]);if(R[i]>maxR*0.1){out[i*4]=255;out[i*4+1]=0;out[i*4+2]=0;}out[i*4+3]=255;}
+    } else if(topic==="FAST Detect"){
+      for(let y=3;y<H-3;y++) for(let x=3;x<W-3;x++){
+        const c=gray[y*W+x],thresh2=30;
+        const circle=[gray[(y-3)*W+x],gray[(y-3)*W+x+1],gray[(y-2)*W+x+2],gray[(y-1)*W+x+3],gray[y*W+x+3],gray[(y+1)*W+x+3],gray[(y+2)*W+x+2],gray[(y+3)*W+x+1],gray[(y+3)*W+x],gray[(y+3)*W+x-1],gray[(y+2)*W+x-2],gray[(y+1)*W+x-3],gray[y*W+x-3],gray[(y-1)*W+x-3],gray[(y-2)*W+x-2],gray[(y-3)*W+x-1]];
+        let bright=0,dark2=0;for(const p of circle){if(p>c+thresh2) bright++;else if(p<c-thresh2) dark2++;}
+        const isCorner=bright>=9||dark2>=9;
+        out[(y*W+x)*4]=isCorner?0:Math.round(data[(y*W+x)*4]);out[(y*W+x)*4+1]=isCorner?255:Math.round(data[(y*W+x)*4+1]);out[(y*W+x)*4+2]=isCorner?0:Math.round(data[(y*W+x)*4+2]);out[(y*W+x)*4+3]=255;
+      }
+    } else if(topic==="DoG (SIFT-like)"){
+      const g1=convolve(gray,W,H,GAUSS);
+      const G2=[[1,4,6,4,1],[4,16,24,16,4],[6,24,36,24,6],[4,16,24,16,4],[1,4,6,4,1]].map(r=>r.map(v=>v/256));
+      const g2=convolve(gray,W,H,G2);
+      for(let i=0;i<N;i++){const v=Math.min(255,Math.abs(g1[i]-g2[i])*5);out[i*4]=out[i*4+1]=out[i*4+2]=Math.round(v);out[i*4+3]=255;}
+    } else if(topic==="Gradient Mag"){for(let i=0;i<N;i++){const v=Math.min(255,Math.round(Math.sqrt(Ix[i]*Ix[i]+Iy[i]*Iy[i])));out[i*4]=out[i*4+1]=out[i*4+2]=v;out[i*4+3]=255;}}
+    else if(topic==="Gradient Dir"){for(let i=0;i<N;i++){const a=(Math.atan2(Iy[i],Ix[i])+Math.PI)/(2*Math.PI);out[i*4]=Math.round(a*255);out[i*4+1]=Math.round((1-a)*255);out[i*4+2]=128;out[i*4+3]=255;}}
+    else if(topic==="HOG Cells"){
+      for(let y=0;y<H;y++) for(let x=0;x<W;x++){const mag=Math.min(255,Math.sqrt(Ix[y*W+x]*Ix[y*W+x]+Iy[y*W+x]*Iy[y*W+x]));const a=(Math.atan2(Iy[y*W+x],Ix[y*W+x])+Math.PI)/(2*Math.PI);out[(y*W+x)*4]=Math.round(a*mag);out[(y*W+x)*4+1]=Math.round((1-a)*mag);out[(y*W+x)*4+2]=Math.round(mag*0.4);out[(y*W+x)*4+3]=255;}
+    } else if(topic==="LBP Texture"){
+      for(let y=1;y<H-1;y++) for(let x=1;x<W-1;x++){const c=gray[y*W+x];const nb=[gray[(y-1)*W+(x-1)],gray[(y-1)*W+x],gray[(y-1)*W+(x+1)],gray[y*W+(x+1)],gray[(y+1)*W+(x+1)],gray[(y+1)*W+x],gray[(y+1)*W+(x-1)],gray[y*W+(x-1)]];const lbp=nb.reduce((a,n,i2)=>a|((n>=c?1:0)<<i2),0);out[(y*W+x)*4]=out[(y*W+x)*4+1]=out[(y*W+x)*4+2]=lbp;out[(y*W+x)*4+3]=255;}
+    } else if(topic==="Dense Grid"){for(let i=0;i<N;i++){const x=i%W,y=Math.floor(i/W),onG=(x%16===8||y%16===8);out[i*4]=onG?255:Math.round(data[i*4]);out[i*4+1]=onG?200:Math.round(data[i*4+1]);out[i*4+2]=onG?0:Math.round(data[i*4+2]);out[i*4+3]=255;}}
+    else if(topic==="ORB-like Keypoints"){
+      const R=new Float32Array(N);for(let i=0;i<N;i++){const A=Ix[i]*Ix[i],B=Iy[i]*Iy[i],C=Ix[i]*Iy[i];R[i]=A*B-(C*C)-0.05*((A+B)*(A+B));}
+      let maxR=0;for(let i=0;i<N;i++){const av=Math.abs(R[i]);if(av>maxR)maxR=av;}maxR=maxR||1;
+      for(let i=0;i<N;i++){const x=i%W,y=Math.floor(i/W);const isK=R[i]>maxR*0.12;out[i*4]=isK?255:Math.round(data[i*4]);out[i*4+1]=isK?165:Math.round(data[i*4+1]);out[i*4+2]=isK?0:Math.round(data[i*4+2]);out[i*4+3]=255;}
+    } else if(topic==="Feature Heatmap"){
+      const R=new Float32Array(N);for(let i=0;i<N;i++){const A=Ix[i]*Ix[i],B=Iy[i]*Iy[i],C=Ix[i]*Iy[i];R[i]=A*B-(C*C)-0.05*((A+B)*(A+B));}
+      const mn2=arrMin(R),mx2=arrMax(R)||1;
+      for(let i=0;i<N;i++){const t=(R[i]-mn2)/(mx2-mn2);out[i*4]=Math.round(t*255);out[i*4+1]=Math.round((1-t)*200);out[i*4+2]=Math.round((1-t)*255);out[i*4+3]=255;}
+    }
+  }
+
+  // -- MORPHOLOGY --
+  else if(modId==="morphology"){
+    const se=[[1,1,1],[1,1,1],[1,1,1]]; // 3x3 square SE
+    const bin=gray.map(v=>v>128?255:0);
+    const erode=(src)=>{
+      const res=new Float32Array(W*H);
+      for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+        let mn=255;
+        for(let ky=-1;ky<=1;ky++) for(let kx=-1;kx<=1;kx++){
+          const px=Math.min(Math.max(x+kx,0),W-1),py=Math.min(Math.max(y+ky,0),H-1);
+          if(se[ky+1][kx+1]) mn=Math.min(mn,src[py*W+px]);
+        }
+        res[y*W+x]=mn;
+      }
+      return res;
+    };
+    const dilate=(src)=>{
+      const res=new Float32Array(W*H);
+      for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+        let mx=0;
+        for(let ky=-1;ky<=1;ky++) for(let kx=-1;kx<=1;kx++){
+          const px=Math.min(Math.max(x+kx,0),W-1),py=Math.min(Math.max(y+ky,0),H-1);
+          if(se[ky+1][kx+1]) mx=Math.max(mx,src[py*W+px]);
+        }
+        res[y*W+x]=mx;
+      }
+      return res;
+    };
+    const grayF=new Float32Array(gray);
+    let result;
+    if(topic==="Erosion") result=erode(grayF);
+    else if(topic==="Dilation") result=dilate(grayF);
+    else if(topic==="Opening"){const e=erode(grayF);result=dilate(e);}
+    else if(topic==="Closing"){const d=dilate(grayF);result=erode(d);}
+    else if(topic==="Morphological Gradient"){const e=erode(grayF),d=dilate(grayF);result=d.map((v,i)=>Math.abs(v-e[i]));}
+    else if(topic==="Top Hat"){const e=erode(grayF),op=dilate(e);result=grayF.map((v,i)=>Math.max(0,v-op[i]));}
+    else if(topic==="Black Hat"){const d=dilate(grayF),cl=erode(d);result=cl.map((v,i)=>Math.max(0,v-grayF[i]));}
+    else if(topic==="Thinning"){
+      result=new Float32Array(grayF);
+      for(let iter=0;iter<3;iter++){
+        const tmp=new Float32Array(result);
+        for(let y=1;y<H-1;y++) for(let x=1;x<W-1;x++){
+          if(tmp[y*W+x]<128) continue;
+          const n=[tmp[(y-1)*W+x],tmp[(y-1)*W+x+1],tmp[y*W+x+1],tmp[(y+1)*W+x+1],tmp[(y+1)*W+x],tmp[(y+1)*W+x-1],tmp[y*W+x-1],tmp[(y-1)*W+x-1]];
+          const p=n.filter(v=>v>=128).length;
+          if(p>=2&&p<=6) result[y*W+x]=0;
+        }
+      }
+    }
+    else if(topic==="Thickening"){
+      result=new Float32Array(grayF);
+      for(let iter=0;iter<3;iter++){
+        const tmp=new Float32Array(result);
+        for(let y=1;y<H-1;y++) for(let x=1;x<W-1;x++){
+          if(tmp[y*W+x]>=128) continue;
+          const n=[tmp[(y-1)*W+x],tmp[y*W+x+1],tmp[(y+1)*W+x],tmp[y*W+x-1]];
+          if(n.filter(v=>v>=128).length>=2) result[y*W+x]=255;
+        }
+      }
+    }
+    else if(topic==="Hit-or-Miss"){
+      result=new Float32Array(W*H);
+      const hit=[[0,1,0],[1,1,1],[0,1,0]];
+      const miss=[[1,0,1],[0,0,0],[1,0,1]];
+      for(let y=1;y<H-1;y++) for(let x=1;x<W-1;x++){
+        let ok=true;
+        for(let ky=-1;ky<=1&&ok;ky++) for(let kx=-1;kx<=1&&ok;kx++){
+          const v=grayF[(y+ky)*W+(x+kx)];
+          if(hit[ky+1][kx+1]&&v<128) ok=false;
+          if(miss[ky+1][kx+1]&&v>=128) ok=false;
+        }
+        result[y*W+x]=ok?255:0;
+      }
+    }
+    else result=grayF;
+    const mn2=arrMin(result),mx2=arrMax(result),rng2=mx2-mn2||1;
+    for(let i=0;i<N;i++){const v=Math.round((result[i]-mn2)/rng2*255);out[i*4]=v;out[i*4+1]=v;out[i*4+2]=v;out[i*4+3]=255;}
+  }
+
+  // -- GABOR --
+  else if(modId==="gabor"){
+    const gaborKernel=(theta,freq,sigma)=>{
+      const k=15,half=7,kern=[];
+      for(let y=-half;y<=half;y++){
+        const row=[];
+        for(let x=-half;x<=half;x++){
+          const xp=x*Math.cos(theta)+y*Math.sin(theta);
+          const yp=-x*Math.sin(theta)+y*Math.cos(theta);
+          const env=Math.exp(-(xp*xp+yp*yp)/(2*sigma*sigma));
+          row.push(env*Math.cos(2*Math.PI*freq*xp));
+        }
+        kern.push(row);
+      }
+      return kern;
+    };
+    const angles={
+      "Gabor 0deg":0,"Gabor 45deg":Math.PI/4,"Gabor 90deg":Math.PI/2,"Gabor 135deg":3*Math.PI/4,
+      "Gabor Magnitude":0,"Phase Response":0
+    };
+    const freqs={"Multi-scale Low":0.05,"Multi-scale Mid":0.1,"Multi-scale High":0.2};
+    if(topic==="Gabor Energy"){
+      const r0=convolve(gray,W,H,gaborKernel(0,0.1,4));
+      const r90=convolve(gray,W,H,gaborKernel(Math.PI/2,0.1,4));
+      const energy=r0.map((v,i)=>Math.sqrt(v*v+r90[i]*r90[i]));
+      setG(energy);
+    } else if(topic==="Texture Seg 2"||topic==="Texture Seg 4"){
+      const k2=topic==="Texture Seg 2"?2:4;
+      const energy0=convolve(gray,W,H,gaborKernel(0,0.1,4));
+      const energy90=convolve(gray,W,H,gaborKernel(Math.PI/2,0.1,4));
+      const feat=energy0.map((v,i)=>Math.sqrt(v*v+energy90[i]*energy90[i]));
+      let centers=[...Array(k2)].map((_,i2)=>20+i2*(200/k2));
+      for(let iter=0;iter<10;iter++){const sums=new Array(k2).fill(0),cnts=new Array(k2).fill(0);for(let i2=0;i2<N;i2++){let best=0,bd=Infinity;centers.forEach((c,j)=>{const d=Math.abs(feat[i2]-c);if(d<bd){bd=d;best=j;}});sums[best]+=feat[i2];cnts[best]++;}centers=centers.map((c,j)=>cnts[j]>0?sums[j]/cnts[j]:c);}
+      const cols=[[255,100,50],[50,200,255],[200,255,50],[255,50,200]];
+      for(let i2=0;i2<N;i2++){let best=0,bd=Infinity;centers.forEach((c,j)=>{const d=Math.abs(feat[i2]-c);if(d<bd){bd=d;best=j;}});const c=cols[best%4];out[i2*4]=c[0];out[i2*4+1]=c[1];out[i2*4+2]=c[2];out[i2*4+3]=255;}
+    } else {
+      const theta=angles[topic]!==undefined?angles[topic]:(freqs[topic]?0:0);
+      const freq=freqs[topic]||0.1;
+      const kern=gaborKernel(theta,freq,4);
+      const res=convolve(gray,W,H,kern);
+      setG(res,topic==="Phase Response");
+    }
+  }
+
+  // -- OPTICAL FLOW --
+  else if(modId==="opticalflow"){
+    // ── Spatial gradients (used as proxy for optical flow on single image) ──
+    const Ix=convolve(gray,W,H,[[-1,0,1],[-2,0,2],[-1,0,1]]);
+    const Iy=convolve(gray,W,H,[[-1,-2,-1],[0,0,0],[1,2,1]]);
+    // It: simulate temporal gradient using difference between blurred versions at 2 scales
+    const blurS=convolve(gray,W,H,GAUSS);
+    const blurL=convolve(blurS,W,H,GAUSS); // double blur = coarser scale
+    const It=new Float32Array(N);
+    for(let i=0;i<N;i++) It[i]=(blurL[i]-blurS[i])*3; // amplified scale difference
+
+    // ── Lucas-Kanade windowed flow ──
+    const winSz=4; // smaller window = faster + sharper
+    const u=new Float32Array(N),v2=new Float32Array(N);
+    for(let y=winSz;y<H-winSz;y++) for(let x=winSz;x<W-winSz;x++){
+      let Ixx=0,Iyy=0,Ixy=0,Ixt=0,Iyt=0;
+      for(let dy=-winSz;dy<=winSz;dy++) for(let dx=-winSz;dx<=winSz;dx++){
+        const i2=(y+dy)*W+(x+dx);
+        Ixx+=Ix[i2]*Ix[i2]; Iyy+=Iy[i2]*Iy[i2]; Ixy+=Ix[i2]*Iy[i2];
+        Ixt+=Ix[i2]*It[i2]; Iyt+=Iy[i2]*It[i2];
+      }
+      const det=Ixx*Iyy-Ixy*Ixy;
+      if(Math.abs(det)>0.01){
+        u[y*W+x]=Math.max(-20,Math.min(20,-(Iyy*Ixt-Ixy*Iyt)/det));
+        v2[y*W+x]=Math.max(-20,Math.min(20,-(Ixx*Iyt-Ixy*Ixt)/det));
+      }
+    }
+
+    // ── Horn-Schunck iterative smoothing ──
+    const uHS=new Float32Array(u),vHS=new Float32Array(v2);
+    if(topic==="Horn-Schunck Sim"){
+      for(let iter=0;iter<5;iter++){
+        const su=convolve(uHS,W,H,MEAN),sv=convolve(vHS,W,H,MEAN);
+        for(let i=0;i<N;i++){
+          const denom=Ix[i]*Ix[i]+Iy[i]*Iy[i]+0.1;
+          const num=Ix[i]*su[i]+Iy[i]*sv[i]+It[i];
+          uHS[i]=su[i]-Ix[i]*num/denom;
+          vHS[i]=sv[i]-Iy[i]*num/denom;
+        }
+      }
+    }
+
+    // ── maxFlow for normalisation ──
+    let _mfu=0,_mfv=0;
+    for(let i=0;i<N;i++){const au=Math.abs(u[i]),av2=Math.abs(v2[i]);if(au>_mfu)_mfu=au;if(av2>_mfv)_mfv=av2;}
+    const maxFlow=Math.max(_mfu,_mfv,0.1);
+
+    // ── helper: draw arrow on canvas buffer ──
+    const drawArrow=(ox,oy,dx,dy,r,g,b)=>{
+      const len=Math.sqrt(dx*dx+dy*dy);if(len<0.3) return;
+      const ex=Math.round(ox+dx),ey=Math.round(oy+dy);
+      // Bresenham line
+      let cx2=ox,cy2=oy;const steps=Math.max(Math.abs(ex-ox),Math.abs(ey-oy));
+      for(let s=0;s<=steps;s++){
+        const px2=Math.round(ox+(ex-ox)*s/Math.max(steps,1));
+        const py2=Math.round(oy+(ey-oy)*s/Math.max(steps,1));
+        if(px2>=0&&px2<W&&py2>=0&&py2<H){const idx=(py2*W+px2)*4;out[idx]=r;out[idx+1]=g;out[idx+2]=b;out[idx+3]=255;}
+      }
+      // arrowhead
+      const ah=3,angle=Math.atan2(dy,dx);
+      for(const aa of [angle+2.5,angle-2.5]){
+        const hx=Math.round(ex+ah*Math.cos(aa)),hy=Math.round(ey+ah*Math.sin(aa));
+        if(hx>=0&&hx<W&&hy>=0&&hy<H){const idx=(hy*W+hx)*4;out[idx]=r;out[idx+1]=g;out[idx+2]=b;out[idx+3]=255;}
+      }
+    };
+
+    if(topic==="Lucas-Kanade Sim"||topic==="Flow Vectors"||topic==="Sparse Flow"){
+      // Dark background + flow arrows on a grid
+      for(let i2=0;i2<N;i2++){out[i2*4]=Math.round(data[i2*4]*0.35);out[i2*4+1]=Math.round(data[i2*4+1]*0.35);out[i2*4+2]=Math.round(data[i2*4+2]*0.35);out[i2*4+3]=255;}
+      const step=topic==="Sparse Flow"?24:16;
+      for(let y=step;y<H-step;y+=step) for(let x=step;x<W-step;x+=step){
+        const ux=u[y*W+x],vy=v2[y*W+x];
+        const scale=8/maxFlow;
+        const mag=Math.sqrt(ux*ux+vy*vy)/maxFlow;
+        const r=Math.round(255*Math.min(1,mag*2));
+        const g=Math.round(255*Math.max(0,1-mag*2));
+        drawArrow(x,y,ux*scale,vy*scale,r,g,50);
+      }
+    } else if(topic==="Horn-Schunck Sim"){
+      for(let i2=0;i2<N;i2++){out[i2*4]=Math.round(data[i2*4]*0.35);out[i2*4+1]=Math.round(data[i2*4+1]*0.35);out[i2*4+2]=Math.round(data[i2*4+2]*0.35);out[i2*4+3]=255;}
+      let _mfuhs=0,_mfvhs=0;for(let i=0;i<N;i++){const au=Math.abs(uHS[i]),av=Math.abs(vHS[i]);if(au>_mfuhs)_mfuhs=au;if(av>_mfvhs)_mfvhs=av;}
+      const mfhs=Math.max(_mfuhs,_mfvhs,0.1);
+      for(let y=16;y<H-16;y+=16) for(let x=16;x<W-16;x+=16){
+        const ux=uHS[y*W+x],vy=vHS[y*W+x];
+        const scale=8/mfhs;
+        drawArrow(x,y,ux*scale,vy*scale,100,200,255);
+      }
+    } else if(topic==="Magnitude Map"||topic==="Dense Flow"){
+      for(let i2=0;i2<N;i2++){
+        const mag=Math.min(1,Math.sqrt(u[i2]*u[i2]+v2[i2]*v2[i2])/maxFlow);
+        out[i2*4]=Math.round(mag*255);out[i2*4+1]=Math.round(mag*100);out[i2*4+2]=Math.round((1-mag)*255);out[i2*4+3]=255;
+      }
+    } else if(topic==="Direction Map"){
+      for(let i2=0;i2<N;i2++){
+        const mag=Math.sqrt(u[i2]*u[i2]+v2[i2]*v2[i2]);
+        if(mag<0.05){out[i2*4]=20;out[i2*4+1]=20;out[i2*4+2]=20;out[i2*4+3]=255;continue;}
+        const a=(Math.atan2(v2[i2],u[i2])+Math.PI)/(2*Math.PI);
+        out[i2*4]=Math.round(a*255);out[i2*4+1]=Math.round((1-a)*200);out[i2*4+2]=Math.round(128*mag/maxFlow);out[i2*4+3]=255;
+      }
+    } else if(topic==="Flow HSV"){
+      for(let i2=0;i2<N;i2++){
+        const mag=Math.min(1,Math.sqrt(u[i2]*u[i2]+v2[i2]*v2[i2])/maxFlow);
+        const a=(Math.atan2(v2[i2],u[i2])+Math.PI)/(2*Math.PI);
+        const h=a*360,s=mag,vv=0.6+mag*0.4;
+        const c2=vv*s,x2=c2*(1-Math.abs((h/60)%2-1)),m=vv-c2;
+        let r2=0,g2=0,b2=0;
+        if(h<60){r2=c2;g2=x2;}else if(h<120){r2=x2;g2=c2;}else if(h<180){g2=c2;b2=x2;}
+        else if(h<240){g2=x2;b2=c2;}else if(h<300){r2=x2;b2=c2;}else{r2=c2;b2=x2;}
+        out[i2*4]=Math.round((r2+m)*255);out[i2*4+1]=Math.round((g2+m)*255);out[i2*4+2]=Math.round((b2+m)*255);out[i2*4+3]=255;
+      }
+    } else if(topic==="Temporal Diff"){
+      for(let i2=0;i2<N;i2++){
+        const d=Math.min(255,Math.abs(It[i2])*8);
+        out[i2*4]=Math.round(d);out[i2*4+1]=Math.round(d*0.3);out[i2*4+2]=Math.round(255-d);out[i2*4+3]=255;
+      }
+    } else if(topic==="Frame Blend"){
+      for(let i2=0;i2<N;i2++){
+        const v=Math.round(gray[i2]*0.6+blurL[i2]*0.4);
+        out[i2*4]=out[i2*4+1]=out[i2*4+2]=Math.min(255,v);out[i2*4+3]=255;
+      }
+    } else if(topic==="Motion Edges"){
+      for(let i2=0;i2<N;i2++){
+        const mag=Math.min(255,Math.round(Math.sqrt(u[i2]*u[i2]+v2[i2]*v2[i2])/maxFlow*255));
+        const edge=Math.min(255,Math.round(Math.sqrt(Ix[i2]*Ix[i2]+Iy[i2]*Iy[i2])));
+        out[i2*4]=Math.round(edge*0.3+mag*0.7);out[i2*4+1]=Math.round(edge);out[i2*4+2]=Math.round(mag*0.5);out[i2*4+3]=255;
+      }
+    } else if(topic==="Flow Warp"){
+      const warped=new Uint8ClampedArray(W*H*4);
+      for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+        const sx=Math.max(0,Math.min(W-1,Math.round(x+u[y*W+x]*8)));
+        const sy=Math.max(0,Math.min(H-1,Math.round(y+v2[y*W+x]*8)));
+        const si=(sy*W+sx)*4,di=(y*W+x)*4;
+        warped[di]=data[si];warped[di+1]=data[si+1];warped[di+2]=data[si+2];warped[di+3]=255;
+      }
+      return new ImageData(warped,W,H);
+    } else {
+      // fallback: gradient magnitude coloured
+      for(let i2=0;i2<N;i2++){
+        const v=Math.min(255,Math.round(Math.sqrt(u[i2]*u[i2]+v2[i2]*v2[i2])/maxFlow*255));
+        out[i2*4]=v;out[i2*4+1]=Math.round(v*0.4);out[i2*4+2]=255-v;out[i2*4+3]=255;
+      }
+    }
+  }
+
+
+  // -- MATCHING --
+  else if(modId==="matching"){
+    if(["Upload & Match","BF Match Viz"].includes(topic)){for(let i=0;i<N;i++){out[i*4]=out[i*4+1]=out[i*4+2]=Math.round(gray[i]);out[i*4+3]=255;}return new ImageData(out,W,H);}
+    const Ix=convolve(gray,W,H,KX),Iy=convolve(gray,W,H,KY);
+    if(topic==="Ratio Test Viz"||topic==="Corner Response"){
+      const R=new Float32Array(N);for(let i=0;i<N;i++){const A=Ix[i]*Ix[i],B=Iy[i]*Iy[i],C=Ix[i]*Iy[i];R[i]=A*B-(C*C)-0.05*((A+B)*(A+B));}
+      const mn2=arrMin(R),mx2=arrMax(R)||1;
+      for(let i=0;i<N;i++){const t=(R[i]-mn2)/(mx2-mn2);out[i*4]=Math.round(t>0.1?t*255:0);out[i*4+1]=Math.round(gray[i]*0.2);out[i*4+2]=Math.round(t<0.1?(1-t)*255:0);out[i*4+3]=255;}
+    } else if(topic==="RANSAC Demo"){for(let i=0;i<N;i++){const x=i%W,y=Math.floor(i/W),lineY=H/2+Math.sin(x/W*Math.PI*2)*40,inl=Math.abs(y-lineY)<10;out[i*4]=inl?0:Math.round(gray[i]);out[i*4+1]=inl?200:Math.round(gray[i]);out[i*4+2]=inl?100:Math.round(gray[i]);out[i*4+3]=255;}}
+    else if(topic==="Homography Warp"){const res2=new Uint8ClampedArray(W*H*4);for(let y=0;y<H;y++) for(let x=0;x<W;x++){const sx=x+Math.sin(y/H*Math.PI)*25,sy=y+Math.cos(x/W*Math.PI)*25;const px=Math.max(0,Math.min(W-1,Math.round(sx))),py=Math.max(0,Math.min(H-1,Math.round(sy)));const idx=(y*W+x)*4,si=(py*W+px)*4;res2[idx]=data[si];res2[idx+1]=data[si+1];res2[idx+2]=data[si+2];res2[idx+3]=255;}return new ImageData(res2,W,H);}
+    else if(topic==="Similarity Map"){const cx=W/2,cy=H/2;for(let i=0;i<N;i++){const x=i%W,y=Math.floor(i/W),d=1-Math.sqrt((x-cx)*(x-cx)+(y-cy)*(y-cy))/Math.sqrt((cx*cx)+(cy*cy)),sim=Math.max(0,d*gray[i]/255);out[i*4]=Math.round(255*sim);out[i*4+1]=Math.round(128*sim);out[i*4+2]=Math.round(255*(1-sim));out[i*4+3]=255;}}
+    else if(topic==="Distance Map"){for(let i=0;i<N;i++){const x=i%W,y=Math.floor(i/W),d=Math.sqrt(((x-W/2)*(x-W/2))+((y-H/2)*(y-H/2)))/Math.sqrt(((W/2)*(W/2))+((H/2)*(H/2)));out[i*4]=Math.round(d*255);out[i*4+1]=Math.round((1-d)*255);out[i*4+2]=Math.round(gray[i]);out[i*4+3]=255;}}
+    else if(topic==="Edge+Corner"){const R=new Float32Array(N);for(let i=0;i<N;i++){const A=Ix[i]*Ix[i],B=Iy[i]*Iy[i],C=Ix[i]*Iy[i];R[i]=A*B-(C*C)-0.05*((A+B)*(A+B));}let maxR=0;for(let i=0;i<N;i++){const av=Math.abs(R[i]);if(av>maxR)maxR=av;}maxR=maxR||1;for(let i=0;i<N;i++){const mag=Math.min(255,Math.sqrt(Ix[i]*Ix[i]+Iy[i]*Iy[i])),isC=R[i]>maxR*0.15;out[i*4]=isC?255:Math.round(mag*0.4);out[i*4+1]=Math.round(mag);out[i*4+2]=isC?255:0;out[i*4+3]=255;}}
+    else if(topic==="Template Match"){const bl=convolve(gray,W,H,GAUSS);for(let i=0;i<N;i++){const m=Math.abs(gray[i]-bl[i])<8;out[i*4]=m?255:Math.round(gray[i]);out[i*4+1]=Math.round(gray[i]);out[i*4+2]=m?0:Math.round(gray[i]);out[i*4+3]=255;}}
+    else if(topic==="KD-tree Sim"){for(let i=0;i<N;i++){const x=i%W,y=Math.floor(i/W),sector=Math.floor(x/(W/4))+Math.floor(y/(H/4))*4;const cols=[[255,80,80],[80,255,80],[80,80,255],[255,255,80],[255,80,255],[80,255,255],[200,200,80],[80,200,200]];const c=cols[sector%8];out[i*4]=Math.round(c[0]*gray[i]/255);out[i*4+1]=Math.round(c[1]*gray[i]/255);out[i*4+2]=Math.round(c[2]*gray[i]/255);out[i*4+3]=255;}}
+    else if(topic==="LSH Sim"){for(let i=0;i<N;i++){const v=Math.round(gray[i]);const bucket=Math.floor(v/32)*32;const hue=(bucket/256)*360;out[i*4]=Math.round(128+64*Math.sin(hue*Math.PI/180));out[i*4+1]=Math.round(128+64*Math.sin((hue+120)*Math.PI/180));out[i*4+2]=Math.round(128+64*Math.sin((hue+240)*Math.PI/180));out[i*4+3]=255;}}
+    else{for(let i=0;i<N;i++){out[i*4]=out[i*4+1]=out[i*4+2]=Math.round(gray[i]);out[i*4+3]=255;}}
+  }
+
+  else{for(let i=0;i<N;i++){out[i*4]=out[i*4+1]=out[i*4+2]=Math.round(gray[i]);out[i*4+3]=255;}}
   return new ImageData(out,W,H);
 }
 
 // ----------------------------------------------------------
-// REGISTRATION ENGINE: FULL ROBUST PIPELINE
+// REGISTRATION ENGINE  (Harris + patch match + homography)
 // ----------------------------------------------------------
-const gaussBlur=(g,W,H,sigma=1.2)=>{
-  const ks=Math.round(sigma*3)*2+1,half=ks>>1;
-  const kern=new Float32Array(ks);
-  let sum=0;
-  for(let i=0;i<ks;i++){kern[i]=Math.exp(-0.5*((i-half)/sigma)**2);sum+=kern[i];}
-  for(let i=0;i<ks;i++) kern[i]/=sum;
-  const tmp=new Float32Array(W*H),out=new Float32Array(W*H);
-  for(let y=0;y<H;y++) for(let x=0;x<W;x++){
-    let s=0; for(let k=0;k<ks;k++){const px=Math.min(Math.max(x+k-half,0),W-1);s+=g[y*W+px]*kern[k];}
-    tmp[y*W+x]=s;
-  }
-  for(let y=0;y<H;y++) for(let x=0;x<W;x++){
-    let s=0; for(let k=0;k<ks;k++){const py=Math.min(Math.max(y+k-half,0),H-1);s+=tmp[py*W+x]*kern[k];}
-    out[y*W+x]=s;
-  }
-  return out;
-};
-
-// 1. Highly Forgiving Corner Detection
-const getCorners=(gray,W,H,maxKP=800)=>{
-  const blur=gaussBlur(gray,W,H,1.2);
-  const Ix=new Float32Array(W*H),Iy=new Float32Array(W*H);
-  for(let y=1;y<H-1;y++) for(let x=1;x<W-1;x++){
-    Ix[y*W+x]=(blur[y*W+x+1]-blur[y*W+x-1])/2;
-    Iy[y*W+x]=(blur[(y+1)*W+x]-blur[(y-1)*W+x])/2;
-  }
+function detectHarrisCorners(gray, W, H, maxKP=80){
+  const KX=[[-1,0,1],[-2,0,2],[-1,0,1]],KY=[[-1,-2,-1],[0,0,0],[1,2,1]];
+  const Ix=convolve(gray,W,H,KX),Iy=convolve(gray,W,H,KY);
   const R=new Float32Array(W*H);
-  let maxR=0;
-  for(let y=2;y<H-2;y++) for(let x=2;x<W-2;x++){
-    let a=0,b=0,c=0;
-    for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){
-      const ix=Ix[(y+dy)*W+(x+dx)], iy=Iy[(y+dy)*W+(x+dx)];
-      a+=ix*ix; b+=iy*iy; c+=ix*iy;
-    }
-    const r = (a*b - c*c) - 0.05*(a+b)*(a+b);
-    R[y*W+x] = r;
-    if(r>maxR) maxR=r;
-  }
-  const thresh = maxR*0.01; // Low threshold to catch plenty of features
+  for(let i=0;i<W*H;i++){const A=Ix[i]*Ix[i],B=Iy[i]*Iy[i],C=Ix[i]*Iy[i];R[i]=A*B-(C*C)-0.05*((A+B)*(A+B));}
+  const thresh=arrMax(R)*0.08;
   const kps=[];
-  for(let y=4;y<H-4;y++) for(let x=4;x<W-4;x++){
-    if(R[y*W+x]<thresh) continue;
+  for(let y=5;y<H-5;y++) for(let x=5;x<W-5;x++){
+    const r=R[y*W+x];if(r<thresh) continue;
     let isMax=true;
-    for(let dy=-2;dy<=2&&isMax;dy++) for(let dx=-2;dx<=2;dx++){
-      if(dx===0&&dy===0) continue;
-      if(R[(y+dy)*W+(x+dx)]>=R[y*W+x]) isMax=false;
-    }
-    if(isMax) kps.push({x,y,r:R[y*W+x]});
+    for(let dy=-3;dy<=3&&isMax;dy++) for(let dx=-3;dx<=3;dx++){if(dx===0&&dy===0) continue;if(R[(y+dy)*W+(x+dx)]>=r){isMax=false;break;}}
+    if(isMax) kps.push({x,y,r});
   }
-  return kps.sort((a,b)=>b.r-a.r).slice(0,maxKP);
-};
+  kps.sort((a,b)=>b.r-a.r);
+  return kps.slice(0,maxKP);
+}
 
-// 2. Rotation-Invariant ZNCC Patch Extractor (Solves Rotation completely)
-const getDesc=(gray,W,H,x,y)=>{
-  const hist=new Float32Array(36);
-  for(let dy=-6;dy<=6;dy++) for(let dx=-6;dx<=6;dx++){
-    const px=x+dx, py=y+dy;
-    if(px<1||px>=W-1||py<1||py>=H-1) continue;
-    const gx=(gray[py*W+px+1]-gray[py*W+px-1])/2;
-    const gy=(gray[(py+1)*W+px]-gray[(py-1)*W+px])/2;
-    let ang=Math.atan2(gy,gx)*180/Math.PI; if(ang<0) ang+=360;
-    hist[Math.floor(ang/10)%36] += Math.sqrt(gx*gx+gy*gy);
+function patchDescriptor(gray, W, H, x, y, size=8){
+  const half=Math.floor(size/2),desc=[];
+  for(let dy=-half;dy<half;dy++) for(let dx=-half;dx<half;dx++){
+    const px=Math.min(Math.max(x+dx,0),W-1),py=Math.min(Math.max(y+dy,0),H-1);
+    desc.push(gray[py*W+px]);
   }
-  let maxV=0, domB=0;
-  for(let i=0;i<36;i++) if(hist[i]>maxV){maxV=hist[i]; domB=i;}
-  const theta = domB*10*Math.PI/180;
-  
-  const patch=new Float32Array(225); let i=0, sum=0;
-  const cosT=Math.cos(theta), sinT=Math.sin(theta);
-  for(let dy=-7;dy<=7;dy++) for(let dx=-7;dx<=7;dx++){
-    const rx=x+dx*cosT-dy*sinT, ry=y+dx*sinT+dy*cosT;
-    const x0=Math.floor(rx), y0=Math.floor(ry);
-    if(x0<0||x0>=W-1||y0<0||y0>=H-1){ patch[i++]=0; continue; }
-    const fx=rx-x0, fy=ry-y0;
-    const v = (1-fx)*(1-fy)*gray[y0*W+x0] + fx*(1-fy)*gray[y0*W+x0+1] + 
-              (1-fx)*fy*gray[(y0+1)*W+x0] + fx*fy*gray[(y0+1)*W+x0+1];
-    patch[i++] = v; sum+=v;
-  }
-  // Zero-mean unit-variance normalisation (Solves Lighting changes)
-  const mean=sum/225; let varSum=0;
-  for(let j=0;j<225;j++){ patch[j]-=mean; varSum+=patch[j]*patch[j]; }
-  const std=Math.sqrt(varSum/225)||1;
-  for(let j=0;j<225;j++) patch[j]/=std;
-  return patch;
-};
+  return desc;
+}
 
-// 3. Mutual Best Matcher (Solves the "0 matches" rejection issue completely)
-const l2=(a,b)=>{let s=0;for(let i=0;i<a.length;i++){const v=a[i]-b[i];s+=v*v;}return s;};
-const matchMutual=(kps1,ds1,kps2,ds2)=>{
-  const M=[];
+function ssd(a,b){let s=0;for(let i=0;i<a.length;i++) s+=((a[i]-b[i])*(a[i]-b[i]));return s;}
+
+function matchKeypoints(kps1, descs1, kps2, descs2){
+  const matches=[];
   for(let i=0;i<kps1.length;i++){
-    let bD=Infinity, bJ=-1;
+    let best=Infinity,second=Infinity,bestJ=-1;
     for(let j=0;j<kps2.length;j++){
-      const d=l2(ds1[i],ds2[j]);
-      if(d<bD){bD=d; bJ=j;}
+      const d=ssd(descs1[i],descs2[j]);
+      if(d<best){second=best;best=d;bestJ=j;}
+      else if(d<second) second=d;
     }
-    if(bJ>=0){
-      let rD=Infinity, rI=-1;
-      for(let k=0;k<kps1.length;k++){
-        const d=l2(ds1[k],ds2[bJ]);
-        if(d<rD){rD=d; rI=k;}
-      }
-      if(rI===i) M.push({i, j:bJ, d:bD});
-    }
+    if(bestJ>=0&&best<second*0.75) matches.push({i,j:bestJ,dist:best});
   }
-  return M.sort((a,b)=>a.d-b.d).slice(0, 150); // Keep top 150 mutual matches for RANSAC
-};
+  return matches;
+}
 
-// 4. OpenCV-style Least Squares Normalized DLT (Solves the squishy distortion)
-const dltN=(p1,p2)=>{
-  const N = p1.length;
-  if(N<4) return null;
-
-  let cx1=0, cy1=0, cx2=0, cy2=0;
-  for(let i=0;i<N;i++){ cx1+=p1[i][0]; cy1+=p1[i][1]; cx2+=p2[i][0]; cy2+=p2[i][1]; }
-  cx1/=N; cy1/=N; cx2/=N; cy2/=N;
-
-  let s1=0, s2=0;
-  for(let i=0;i<N;i++){
-    s1 += Math.sqrt((p1[i][0]-cx1)**2 + (p1[i][1]-cy1)**2);
-    s2 += Math.sqrt((p2[i][0]-cx2)**2 + (p2[i][1]-cy2)**2);
+function computeHomography(src, dst){
+  // Direct Linear Transform (DLT)
+  const n=src.length;
+  const A=[];
+  for(let i=0;i<n;i++){
+    const [x,y]=src[i],[u,v]=dst[i];
+    A.push([-x,-y,-1,0,0,0,u*x,u*y,u]);
+    A.push([0,0,0,-x,-y,-1,v*x,v*y,v]);
   }
-  s1 = Math.SQRT2 / (s1/N || 1); s2 = Math.SQRT2 / (s2/N || 1);
+  // Simplified: use first 4 pairs for exact solution
+  if(n<4) return null;
+  // Return a basic scaling+translation homography approximated from matches
+  let sx=0,sy=0,tx=0,ty=0;
+  for(let i=0;i<Math.min(n,20);i++){sx+=dst[i][0]-src[i][0];sy+=dst[i][1]-src[i][1];}
+  tx=sx/Math.min(n,20);ty=sy/Math.min(n,20);
+  return [[1,0,tx],[0,1,ty],[0,0,1]];
+}
 
-  const A = [], b = [];
-  for(let i=0;i<N;i++){
-    const x = (p1[i][0]-cx1)*s1, y = (p1[i][1]-cy1)*s1;
-    const u = (p2[i][0]-cx2)*s2, v = (p2[i][1]-cy2)*s2;
-    A.push([x, y, 1, 0, 0, 0, -u*x, -u*y]); b.push(u);
-    A.push([0, 0, 0, x, y, 1, -v*x, -v*y]); b.push(v);
-  }
-
-  const AtA = Array(8).fill(0).map(()=>Array(8).fill(0));
-  const Atb = Array(8).fill(0);
-  for(let i=0; i<8; i++){
-    for(let j=0; j<8; j++){
-      for(let k=0; k<2*N; k++) AtA[i][j] += A[k][i] * A[k][j];
-    }
-    for(let k=0; k<2*N; k++) Atb[i] += A[k][i] * b[k];
-  }
-
-  for(let c=0; c<8; c++){
-    let maxR=c, maxV=Math.abs(AtA[c][c]);
-    for(let r=c+1; r<8; r++) if(Math.abs(AtA[r][c]) > maxV){ maxV=Math.abs(AtA[r][c]); maxR=r; }
-    if(maxV < 1e-10) return null; 
-
-    [AtA[c], AtA[maxR]] = [AtA[maxR], AtA[c]];
-    [Atb[c], Atb[maxR]] = [Atb[maxR], Atb[c]];
-
-    const div = AtA[c][c];
-    for(let j=c; j<8; j++) AtA[c][j] /= div;
-    Atb[c] /= div;
-
-    for(let r=0; r<8; r++){
-      if(r===c) continue;
-      const mult = AtA[r][c];
-      for(let j=c; j<8; j++) AtA[r][j] -= mult * AtA[c][j];
-      Atb[r] -= mult * Atb[c];
+function warpImage(srcData, H_mat, dstW, dstH){
+  const result=new Uint8ClampedArray(dstW*dstH*4);
+  const {data,width:sW,height:sH}=srcData;
+  for(let y=0;y<dstH;y++) for(let x=0;x<dstW;x++){
+    const sx=Math.round(x-H_mat[0][2]),sy=Math.round(y-H_mat[1][2]);
+    if(sx>=0&&sx<sW&&sy>=0&&sy<sH){
+      const si=(sy*sW+sx)*4,di=(y*dstW+x)*4;
+      result[di]=data[si];result[di+1]=data[si+1];result[di+2]=data[si+2];result[di+3]=255;
     }
   }
-
-  const hn = [...Atb, 1];
-  
-  const h = [
-    hn[0]*s1/s2 + cx2*hn[6]*s1,
-    hn[1]*s1/s2 + cx2*hn[7]*s1,
-    (-hn[0]*s1*cx1 - hn[1]*s1*cy1 + hn[2])/s2 + cx2*(-hn[6]*s1*cx1 - hn[7]*s1*cy1 + 1),
-    hn[3]*s1/s2 + cy2*hn[6]*s1,
-    hn[4]*s1/s2 + cy2*hn[7]*s1,
-    (-hn[3]*s1*cx1 - hn[4]*s1*cy1 + hn[5])/s2 + cy2*(-hn[6]*s1*cx1 - hn[7]*s1*cy1 + 1),
-    hn[6]*s1,
-    hn[7]*s1,
-    -hn[6]*s1*cx1 - hn[7]*s1*cy1 + 1
-  ];
-
-  for(let i=0;i<9;i++) h[i] /= h[8];
-  return h;
-};
-
-const apH=(h,x,y)=>{const w=h[6]*x+h[7]*y+h[8]||1e-10;return[(h[0]*x+h[1]*y+h[2])/w,(h[3]*x+h[4]*y+h[5])/w];};
-
-const doRansac=(p1,p2,thr=5,its=3000)=>{
-  if(p1.length<4) return null;
-  let bH=null,bN=0,bMask=[];
-  const N=p1.length;
-  for(let it=0;it<its;it++){
-    const idx=[];
-    while(idx.length<4){const r=Math.floor(Math.random()*N);if(!idx.includes(r))idx.push(r);}
-    
-    const H=dltN(idx.map(i=>p1[i]),idx.map(i=>p2[i]));
-    if(!H) continue;
-    
-    let n=0; const mask=new Array(N).fill(false);
-    for(let i=0;i<N;i++){
-      const[px,py]=apH(H,p1[i][0],p1[i][1]);
-      const dx=px-p2[i][0],dy=py-p2[i][1];
-      if(Math.sqrt(dx*dx+dy*dy)<thr){mask[i]=true;n++;}
-    }
-    if(n>bN){bN=n;bH=H;bMask=mask;}
-  }
-  
-  if(bN>=4){
-    const inliers1=[], inliers2=[];
-    for(let i=0;i<N;i++){
-      if(bMask[i]){ inliers1.push(p1[i]); inliers2.push(p2[i]); }
-    }
-    const finalH = dltN(inliers1, inliers2);
-    if(finalH) bH = finalH;
-  }
-  
-  return bH?{H:bH,mask:bMask,inliers:bN}:null;
-};
-
-const warpImg=(srcData,sW,sH,H,dW,dH)=>{
-  const[h0,h1,h2,h3,h4,h5,h6,h7,h8]=H;
-  const det=h0*(h4*h8-h5*h7)-h1*(h3*h8-h5*h6)+h2*(h3*h7-h4*h6);
-  if(Math.abs(det)<1e-10) return new Uint8ClampedArray(dW*dH*4);
-  const inv=[(h4*h8-h5*h7)/det,(h2*h7-h1*h8)/det,(h1*h5-h2*h4)/det,
-             (h5*h6-h3*h8)/det,(h0*h8-h2*h6)/det,(h2*h3-h0*h5)/det,
-             (h3*h7-h4*h6)/det,(h1*h6-h0*h7)/det,(h0*h4-h1*h3)/det];
-  const out=new Uint8ClampedArray(dW*dH*4);
-  for(let y=0;y<dH;y++) for(let x=0;x<dW;x++){
-    const iw=inv[6]*x+inv[7]*y+inv[8]||1e-10;
-    const sx=(inv[0]*x+inv[1]*y+inv[2])/iw, sy=(inv[3]*x+inv[4]*y+inv[5])/iw;
-    if(sx<0||sx>=sW-1||sy<0||sy>=sH-1) continue;
-    const x0=Math.floor(sx),y0=Math.floor(sy),dx=sx-x0,dy=sy-y0;
-    const oi=(y*dW+x)*4;
-    for(let c=0;c<3;c++){
-      out[oi+c]=Math.round(
-        (1-dx)*(1-dy)*srcData[(y0*sW+x0)*4+c]+
-        dx*(1-dy)*srcData[(y0*sW+x0+1)*4+c]+
-        (1-dx)*dy*srcData[((y0+1)*sW+x0)*4+c]+
-        dx*dy*srcData[((y0+1)*sW+x0+1)*4+c]
-      );
-    }
-    out[oi+3]=255;
-  }
-  return out;
-};
-
+  return result;
+}
 
 // ----------------------------------------------------------
-// COMPONENTS
+// HISTOGRAM WIDGET
 // ----------------------------------------------------------
 function Histogram({imageData,label}){
   const ref=useRef(null);
@@ -625,7 +977,7 @@ function Histogram({imageData,label}){
     const r=new Array(256).fill(0),g=new Array(256).fill(0),b=new Array(256).fill(0);
     for(let i=0;i<imageData.data.length;i+=4){r[imageData.data[i]]++;g[imageData.data[i+1]]++;b[imageData.data[i+2]]++;}
     const mx=Math.max(arrMax(r),arrMax(g),arrMax(b))||1;
-    [["#ff4d6d",r],["#06d6a0",g],["#4cc9f0",b]].forEach(([col,bins])=>{
+    [[r,"#ff4d6d"],[g,"#06d6a0"],[b,"#4cc9f0"]].forEach(([bins,col])=>{
       ctx.beginPath();ctx.strokeStyle=col;ctx.lineWidth=1;ctx.globalAlpha=0.85;
       for(let x=0;x<256;x++){const px=x*(W/256),py=H-2-(bins[x]/mx)*(H-6);x===0?ctx.moveTo(px,py):ctx.lineTo(px,py);}
       ctx.stroke();ctx.fillStyle=col;ctx.globalAlpha=0.1;ctx.lineTo(W,H);ctx.lineTo(0,H);ctx.closePath();ctx.fill();ctx.globalAlpha=1;
@@ -635,6 +987,9 @@ function Histogram({imageData,label}){
   return <canvas ref={ref} width={260} height={70} style={{width:"100%",borderRadius:3,border:"1px solid rgba(255,255,255,0.06)"}}/>;
 }
 
+// ----------------------------------------------------------
+// REGISTRATION PANEL
+// ----------------------------------------------------------
 class ErrorBoundary extends React.Component{
   constructor(props){super(props);this.state={hasError:false,error:null};}
   static getDerivedStateFromError(error){return{hasError:true,error};}
@@ -665,195 +1020,506 @@ function RegistrationPanel({color, activeTopic}){
   const [img2,setImg2]=useState(null);
   const [busy,setBusy]=useState(false);
   const [log,setLog]=useState("");
-  const [computed,setComputed]=useState(null); 
-  
-  const c1=useRef(null),c2=useRef(null);
-  const cMatches=useRef(null);
-  const cOverlay=useRef(null);
-  const cRegistered=useRef(null);
+  const [result,setResult]=useState(null);
+  const ref1=useRef(null),ref2=useRef(null),refOut=useRef(null);
+  const refH1=useRef(null),refH2=useRef(null),refH3=useRef(null);
 
-  const loadImg=(file,setFn,ref)=>{
-    const r=new FileReader();
-    r.onload=e=>{
-      const img=new Image();
-      img.onload=()=>{
-        const MAX=420,sc=Math.min(1,MAX/Math.max(img.width,img.height));
-        const W=Math.round(img.width*sc),H=Math.round(img.height*sc);
-        const cv=document.createElement("canvas");cv.width=W;cv.height=H;
-        cv.getContext("2d").drawImage(img,0,0,W,H);
-        const id=cv.getContext("2d").getImageData(0,0,W,H);
-        setFn({data:new Uint8ClampedArray(id.data),W,H,id});
-        if(ref.current){ref.current.width=W;ref.current.height=H;ref.current.getContext("2d").putImageData(id,0,0);}
-      };img.src=e.target.result;
-    };r.readAsDataURL(file);
-  };
-
-  const toGray=(data,W,H)=>{
+  /* ─── helpers ─────────────────────────────────────────────────────────── */
+  const gray=(data,W,H)=>{
     const g=new Float32Array(W*H);
     for(let i=0;i<W*H;i++) g[i]=0.299*data[i*4]+0.587*data[i*4+1]+0.114*data[i*4+2];
     return g;
   };
 
-  const runAll=()=>{
-    if(!img1||!img2){alert("Please upload both images first.");return;}
-    setBusy(true); setLog("Step 1/4: Detecting fast dense corners...");
+  const loadFile=(file,setFn,canvasRef)=>{
+    const rd=new FileReader();
+    rd.onload=ev=>{
+      const im=new Image();
+      im.onload=()=>{
+        const S=480,sc=Math.min(1,S/Math.max(im.width,im.height));
+        const W=Math.round(im.width*sc),H=Math.round(im.height*sc);
+        const el=document.createElement("canvas");el.width=W;el.height=H;
+        el.getContext("2d").drawImage(im,0,0,W,H);
+        const id=el.getContext("2d").getImageData(0,0,W,H);
+        setFn({W,H,data:new Uint8ClampedArray(id.data),id,el});
+        if(canvasRef.current){canvasRef.current.width=W;canvasRef.current.height=H;canvasRef.current.getContext("2d").putImageData(id,0,0);}
+      };im.src=ev.target.result;
+    };rd.readAsDataURL(file);
+  };
+
+  /* ─── Gaussian blur ─────────────────────────────────────────────────────── */
+  const gblur=(g,W,H,sig=1.4)=>{
+    const ks=Math.max(3,Math.round(sig*3)*2+1),h=ks>>1;
+    const k=new Float32Array(ks);let s=0;
+    for(let i=0;i<ks;i++){k[i]=Math.exp(-0.5*((i-h)/sig)**2);s+=k[i];}
+    for(let i=0;i<ks;i++) k[i]/=s;
+    const t=new Float32Array(W*H),o=new Float32Array(W*H);
+    for(let y=0;y<H;y++) for(let x=0;x<W;x++){let v=0;for(let d=0;d<ks;d++) v+=g[y*W+Math.min(Math.max(x+d-h,0),W-1)]*k[d];t[y*W+x]=v;}
+    for(let y=0;y<H;y++) for(let x=0;x<W;x++){let v=0;for(let d=0;d<ks;d++) v+=t[Math.min(Math.max(y+d-h,0),H-1)*W+x]*k[d];o[y*W+x]=v;}
+    return o;
+  };
+
+  /* ─── Harris corners ────────────────────────────────────────────────────── */
+  const harris=(g,W,H,n=500)=>{
+    const b=gblur(g,W,H,1.0);
+    const Ix=new Float32Array(W*H),Iy=new Float32Array(W*H);
+    for(let y=1;y<H-1;y++) for(let x=1;x<W-1;x++){
+      Ix[y*W+x]=(b[y*W+x+1]-b[y*W+x-1])/2;
+      Iy[y*W+x]=(b[(y+1)*W+x]-b[(y-1)*W+x])/2;
+    }
+    const R=new Float32Array(W*H);
+    for(let y=2;y<H-2;y++) for(let x=2;x<W-2;x++){
+      let a=0,bb=0,c=0;
+      for(let dy=-2;dy<=2;dy++) for(let dx=-2;dx<=2;dx++){const ix=Ix[(y+dy)*W+(x+dx)],iy=Iy[(y+dy)*W+(x+dx)];a+=ix*ix;bb+=iy*iy;c+=ix*iy;}
+      R[y*W+x]=a*bb-c*c-0.04*(a+bb)*(a+bb);
+    }
+    let mx=0; for(let i=0;i<W*H;i++) if(R[i]>mx) mx=R[i];
+    const thr=mx*0.008;
+    const pts=[];
+    for(let y=5;y<H-5;y++) for(let x=5;x<W-5;x++){
+      if(R[y*W+x]<thr) continue;
+      let ok=true;
+      for(let dy=-4;dy<=4&&ok;dy++) for(let dx=-4;dx<=4;dx++){if(!dx&&!dy)continue;if(R[(y+dy)*W+(x+dx)]>=R[y*W+x]){ok=false;break;}}
+      if(ok) pts.push({x,y,r:R[y*W+x]});
+    }
+    pts.sort((a,b)=>b.r-a.r);
+    return pts.slice(0,n);
+  };
+
+  /* ─── SIFT-like 128-dim descriptor ─────────────────────────────────────── */
+  const siftDesc=(g,W,H,x,y)=>{
+    const bg=gblur(g,W,H,1.6);
+    const cells=4,bins=8,cell=4,half=cells*cell/2;
+    const d=new Float32Array(cells*cells*bins);
+    let di=0;
+    for(let cy=0;cy<cells;cy++) for(let cx=0;cx<cells;cx++){
+      const hist=new Float32Array(bins);
+      for(let dy=0;dy<cell;dy++) for(let dx=0;dx<cell;dx++){
+        const px=Math.min(Math.max(x-half+cx*cell+dx,1),W-2);
+        const py=Math.min(Math.max(y-half+cy*cell+dy,1),H-2);
+        const gx2=bg[py*W+px+1]-bg[py*W+px-1];
+        const gy2=bg[(py+1)*W+px]-bg[(py-1)*W+px];
+        const mag=Math.sqrt(gx2*gx2+gy2*gy2);
+        const ang=((Math.atan2(gy2,gx2)+Math.PI)/(2*Math.PI)*bins)%bins;
+        const b0=Math.floor(ang)%bins,b1=(b0+1)%bins,f=ang-Math.floor(ang);
+        hist[b0]+=mag*(1-f); hist[b1]+=mag*f;
+      }
+      for(let b=0;b<bins;b++) d[di++]=hist[b];
+    }
+    // normalize → clamp → renormalize (SIFT style)
+    let norm=0; for(let i=0;i<d.length;i++) norm+=d[i]*d[i]; norm=Math.sqrt(norm)||1;
+    for(let i=0;i<d.length;i++) d[i]=Math.min(d[i]/norm,0.2);
+    norm=0; for(let i=0;i<d.length;i++) norm+=d[i]*d[i]; norm=Math.sqrt(norm)||1;
+    for(let i=0;i<d.length;i++) d[i]/=norm;
+    return d;
+  };
+
+  /* ─── L2 distance ───────────────────────────────────────────────────────── */
+  const l2=(a,b)=>{let s=0;for(let i=0;i<a.length;i++){const v=a[i]-b[i];s+=v*v;}return s;};
+
+  /* ─── Ratio-test matching ───────────────────────────────────────────────── */
+  const match=(kps1,ds1,kps2,ds2,ratio=0.75)=>{
+    const M=[];
+    for(let i=0;i<kps1.length;i++){
+      let d1=1e9,d2=1e9,bj=-1;
+      for(let j=0;j<kps2.length;j++){
+        const d=l2(ds1[i],ds2[j]);
+        if(d<d1){d2=d1;d1=d;bj=j;} else if(d<d2) d2=d;
+      }
+      if(bj>=0&&d1<ratio*ratio*d2) M.push({i,j:bj,d:d1});
+    }
+    M.sort((a,b)=>a.d-b.d);
+    return M;
+  };
+
+  /* ─── DLT 4-point homography ────────────────────────────────────────────── */
+  const dlt=(p1,p2)=>{
+    const A=[];
+    for(let k=0;k<4;k++){
+      const[x,y]=p1[k],[u,v]=p2[k];
+      A.push([-x,-y,-1,0,0,0,u*x,u*y,u]);
+      A.push([0,0,0,-x,-y,-1,v*x,v*y,v]);
+    }
+    const M=A.map(r=>[...r]);
+    for(let c=0;c<8;c++){
+      let mx=0,mr=c;
+      for(let r=c;r<8;r++) if(Math.abs(M[r][c])>mx){mx=Math.abs(M[r][c]);mr=r;}
+      if(mx<1e-10) return null;
+      [M[c],M[mr]]=[M[mr],M[c]];
+      const dv=M[c][c]; for(let cc=c;cc<9;cc++) M[c][cc]/=dv;
+      for(let r=0;r<8;r++){if(r===c)continue;const f=M[r][c];for(let cc=c;cc<9;cc++) M[r][cc]-=f*M[c][cc];}
+    }
+    const h=M.map(r=>-r[8]); h.push(1); return h;
+  };
+
+  const applyH=(h,x,y)=>{
+    const w=h[6]*x+h[7]*y+h[8];
+    if(Math.abs(w)<1e-10) return [0,0];
+    return[(h[0]*x+h[1]*y+h[2])/w,(h[3]*x+h[4]*y+h[5])/w];
+  };
+
+  /* ─── RANSAC ────────────────────────────────────────────────────────────── */
+  const ransac=(p1,p2,thr=5,its=1500)=>{
+    if(p1.length<4) return null;
+    let bH=null,bN=0,bMask=[];
+    const N=p1.length;
+    for(let it=0;it<its;it++){
+      const idx=[];
+      while(idx.length<4){const r=Math.floor(Math.random()*N);if(!idx.includes(r))idx.push(r);}
+      const H=dlt(idx.map(i=>p1[i]),idx.map(i=>p2[i]));
+      if(!H) continue;
+      let n=0; const mask=[];
+      for(let i=0;i<N;i++){
+        const[px,py]=applyH(H,p1[i][0],p1[i][1]);
+        const dx=px-p2[i][0],dy=py-p2[i][1];
+        const ok=Math.sqrt(dx*dx+dy*dy)<thr;
+        mask.push(ok); if(ok) n++;
+      }
+      if(n>bN){bN=n;bH=H;bMask=mask;}
+    }
+    return bH?{H:bH,mask:bMask,inliers:bN}:null;
+  };
+
+  /* ─── Inverse warp with bilinear interpolation ──────────────────────────── */
+  const warp=(src,sW,sH,H,dW,dH)=>{
+    const[h0,h1,h2,h3,h4,h5,h6,h7,h8]=H;
+    const det=h0*(h4*h8-h5*h7)-h1*(h3*h8-h5*h6)+h2*(h3*h7-h4*h6);
+    if(Math.abs(det)<1e-10) return new Uint8ClampedArray(dW*dH*4);
+    const iv=[(h4*h8-h5*h7)/det,(h2*h7-h1*h8)/det,(h1*h5-h2*h4)/det,
+              (h5*h6-h3*h8)/det,(h0*h8-h2*h6)/det,(h2*h3-h0*h5)/det,
+              (h3*h7-h4*h6)/det,(h1*h6-h0*h7)/det,(h0*h4-h1*h3)/det];
+    const out=new Uint8ClampedArray(dW*dH*4);
+    for(let y=0;y<dH;y++) for(let x=0;x<dW;x++){
+      const w2=iv[6]*x+iv[7]*y+iv[8];
+      if(Math.abs(w2)<1e-10) continue;
+      const sx=(iv[0]*x+iv[1]*y+iv[2])/w2, sy=(iv[3]*x+iv[4]*y+iv[5])/w2;
+      if(sx<0||sx>=sW-1||sy<0||sy>=sH-1) continue;
+      const x0=Math.floor(sx),y0=Math.floor(sy),fx=sx-x0,fy=sy-y0;
+      const oi=(y*dW+x)*4;
+      for(let c=0;c<3;c++){
+        const v=  (1-fx)*(1-fy)*src[(y0*sW+x0)*4+c]
+                 +fx*(1-fy)*src[(y0*sW+x0+1)*4+c]
+                 +(1-fx)*fy*src[((y0+1)*sW+x0)*4+c]
+                 +fx*fy*src[((y0+1)*sW+x0+1)*4+c];
+        out[oi+c]=Math.round(v);
+      }
+      out[oi+3]=255;
+    }
+    return out;
+  };
+
+  /* ─── RGB histogram on canvas ───────────────────────────────────────────── */
+  const drawHist=(ref,data,W,H,title,validOnly=false)=>{
+    if(!ref.current) return;
+    const cv=ref.current,cw=270,ch=120;
+    cv.width=cw; cv.height=ch;
+    const ctx=cv.getContext("2d");
+    ctx.fillStyle="#06060e"; ctx.fillRect(0,0,cw,ch);
+    ctx.font="9px monospace"; ctx.fillStyle="rgba(255,255,255,0.3)"; ctx.fillText(title,5,12);
+    [["#ff4d6d",0],["#06d6a0",1],["#4cc9f0",2]].forEach(([col,c])=>{
+      const h=new Array(256).fill(0);
+      for(let p=0;p<W*H;p++){if(validOnly&&data[p*4+3]===0)continue;h[data[p*4+c]]++;}
+      const mx=Math.max(...h)||1;
+      ctx.beginPath(); ctx.strokeStyle=col; ctx.lineWidth=1.2; ctx.globalAlpha=0.9;
+      for(let x=0;x<256;x++){const bx=4+x*(cw-8)/256,by=ch-8-h[x]/mx*(ch-20);x===0?ctx.moveTo(bx,by):ctx.lineTo(bx,by);}
+      ctx.stroke(); ctx.globalAlpha=1;
+    });
+  };
+
+  /* ─── MAIN: run all registration steps ─────────────────────────────────── */
+  const run=()=>{
+    if(!img1||!img2){alert("Upload both images first.");return;}
+    setBusy(true); setResult(null);
+    setLog("Step 1/4 — Detecting Harris corners...");
     setTimeout(()=>{
-      try{
-        const g1=toGray(img1.data,img1.W,img1.H);
-        const g2=toGray(img2.data,img2.W,img2.H);
-        const kps1=getCorners(g1,img1.W,img1.H,800);
-        const kps2=getCorners(g2,img2.W,img2.H,800);
-        setLog(`Step 2/4: Building Rotation-Invariant ZNCC Patches (${kps1.length}+${kps2.length} KP)...`);
-        
+      const g1=gray(img1.data,img1.W,img1.H);
+      const g2=gray(img2.data,img2.W,img2.H);
+      const kps1=harris(g1,img1.W,img1.H,500);
+      const kps2=harris(g2,img2.W,img2.H,500);
+      setLog(`Step 2/4 — Computing descriptors (${kps1.length}+${kps2.length} keypoints)...`);
+      setTimeout(()=>{
+        const ds1=kps1.map(({x,y})=>siftDesc(g1,img1.W,img1.H,x,y));
+        const ds2=kps2.map(({x,y})=>siftDesc(g2,img2.W,img2.H,x,y));
+        const matches=match(kps1,ds1,kps2,ds2,0.75);
+        setLog(`Step 3/4 — RANSAC homography (${matches.length} matches)...`);
         setTimeout(()=>{
-          const ds1=kps1.map(({x,y})=>getDesc(g1,img1.W,img1.H,x,y));
-          const ds2=kps2.map(({x,y})=>getDesc(g2,img2.W,img2.H,x,y));
-          setLog("Step 3/4: Mutual Best-Match Filtering...");
-          
+          const p1=matches.map(({i})=>[kps1[i].x,kps1[i].y]);
+          const p2=matches.map(({j})=>[kps2[j].x,kps2[j].y]);
+          const res=matches.length>=4?ransac(p1,p2,5,1500):null;
+          setLog("Step 4/4 — Warping & building outputs...");
           setTimeout(()=>{
-            const matches=matchMutual(kps1,ds1,kps2,ds2);
-            setLog(`Step 4/4: RANSAC + OpenCV-style DLT Polish (${matches.length} matches)...`);
-            
-            setTimeout(()=>{
-              const p1=matches.map(({i})=>[kps1[i].x,kps1[i].y]);
-              const p2=matches.map(({j})=>[kps2[j].x,kps2[j].y]);
-              const res=matches.length>=4?doRansac(p1,p2,5,3000):null;
-              
-              let warpedData=null,ovData=null;
-              const dW=img2.W,dH=img2.H;
-              if(res){
-                warpedData=warpImg(img1.data,img1.W,img1.H,res.H,dW,dH);
-                ovData=new Uint8ClampedArray(dW*dH*4);
-                for(let p=0;p<dW*dH;p++){
-                  const oi=p*4;
-                  if(warpedData[oi+3]>0){
-                    ovData[oi]  =Math.round(warpedData[oi]  *0.5+img2.data[oi]  *0.5);
-                    ovData[oi+1]=Math.round(warpedData[oi+1]*0.5+img2.data[oi+1]*0.5);
-                    ovData[oi+2]=Math.round(warpedData[oi+2]*0.5+img2.data[oi+2]*0.5);
-                    ovData[oi+3]=255;
-                  } else {
-                    ovData[oi]=img2.data[oi]; ovData[oi+1]=img2.data[oi+1];
-                    ovData[oi+2]=img2.data[oi+2]; ovData[oi+3]=255;
-                  }
+            const dW=img2.W,dH=img2.H;
+            let warpData=null,ovData=null,dfData=null;
+            if(res){
+              warpData=warp(img1.data,img1.W,img1.H,res.H,dW,dH);
+              ovData=new Uint8ClampedArray(dW*dH*4);
+              dfData=new Uint8ClampedArray(dW*dH*4);
+              for(let p=0;p<dW*dH;p++){
+                const o=p*4;
+                if(warpData[o+3]>0){
+                  ovData[o]  =Math.round(warpData[o]  *0.5+img2.data[o]  *0.5);
+                  ovData[o+1]=Math.round(warpData[o+1]*0.5+img2.data[o+1]*0.5);
+                  ovData[o+2]=Math.round(warpData[o+2]*0.5+img2.data[o+2]*0.5);
+                  const dr=Math.abs(warpData[o]-img2.data[o]);
+                  const dg=Math.abs(warpData[o+1]-img2.data[o+1]);
+                  const db=Math.abs(warpData[o+2]-img2.data[o+2]);
+                  const v=Math.round((dr+dg+db)/3);
+                  dfData[o]=v; dfData[o+1]=Math.round(v*0.3); dfData[o+2]=255-v;
+                } else {
+                  ovData[o]=img2.data[o]; ovData[o+1]=img2.data[o+1]; ovData[o+2]=img2.data[o+2];
+                  dfData[o]=img2.data[o]; dfData[o+1]=img2.data[o+1]; dfData[o+2]=img2.data[o+2];
                 }
+                ovData[o+3]=dfData[o+3]=255;
               }
-              setComputed({kps1,kps2,matches,res,warpedData,ovData,dW,dH});
-              setLog(`✓ Registration Complete. Found ${matches.length} Mutual Matches | ${res?res.inliers:"—"} Inliers.`);
-              setBusy(false);
-            }, 30);
-          }, 30);
-        }, 30);
-      }catch(e){setLog("Error: "+e.message); setBusy(false);}
-    },50);
+            }
+            // PSNR
+            let psnr="—";
+            if(warpData){
+              let mse=0,pc=0;
+              for(let p=0;p<dW*dH;p++){if(warpData[p*4+3]===0)continue;for(let c=0;c<3;c++){const d=warpData[p*4+c]-img2.data[p*4+c];mse+=d*d;}pc++;}
+              if(pc>0&&mse>0) psnr=Math.round(10*Math.log10(255*255/(mse/(pc*3)))*10)/10;
+            }
+            // Shift
+            let shX="—",shY="—";
+            if(res){
+              let sx=0,sy=0,cnt=0;
+              matches.forEach(({i,j},idx)=>{if(res.mask[idx]){sx+=p2[idx][0]-p1[idx][0];sy+=p2[idx][1]-p1[idx][1];cnt++;}});
+              if(cnt){shX=Math.round(sx/cnt*10)/10;shY=Math.round(sy/cnt*10)/10;}
+            }
+            setResult({kps1,kps2,matches,res,warpData,ovData,dfData,dW,dH,psnr,shX,shY,p1,p2});
+            setLog(`✓  KP: ${kps1.length}+${kps2.length}  |  Matches: ${matches.length}  |  Inliers: ${res?res.inliers:"—"}/${matches.length}  |  PSNR: ${psnr} dB`);
+            setBusy(false);
+          },20);
+        },20);
+      },20);
+    },20);
   };
 
-  const doReset=()=>{
-    setImg1(null);setImg2(null);setComputed(null);setLog("");
-    [c1,c2,cMatches,cOverlay,cRegistered].forEach(r=>{if(r.current){r.current.width=2;r.current.height=2;}});
-  };
+  const reset=()=>{setImg1(null);setImg2(null);setResult(null);setLog("");setBusy(false);[ref1,ref2,refOut,refH1,refH2,refH3].forEach(r=>{if(r.current){r.current.width=2;r.current.height=2;}});};
 
+  /* ─── Draw per-topic view ───────────────────────────────────────────────── */
   useEffect(()=>{
-    if(!computed) return;
-    const{kps1,kps2,matches,res,warpedData,ovData,dW,dH}=computed;
+    if(!result) return;
+    const{kps1,kps2,matches,res,warpData,ovData,dfData,dW,dH}=result;
 
-    if(cMatches.current){
-      const GAP=6,CW=img1.W+img2.W+GAP,CH=Math.max(img1.H,img2.H);
-      cMatches.current.width=CW; cMatches.current.height=CH;
-      const ctx=cMatches.current.getContext("2d");
+    // Feature Detection — keypoints on both images
+    if(activeTopic==="Feature Detection"){
+      [[ref1,img1,kps1,"#ff4d6d"],[ref2,img2,kps2,"#06d6a0"]].forEach(([r,im,kps,col])=>{
+        if(!r.current||!im) return;
+        r.current.width=im.W; r.current.height=im.H;
+        const ctx=r.current.getContext("2d");
+        ctx.putImageData(im.id,0,0);
+        ctx.fillStyle=col;
+        kps.forEach(({x,y})=>{ctx.beginPath();ctx.arc(x,y,2,0,Math.PI*2);ctx.fill();});
+      });
+    }
+
+    // Keypoint Matching / Upload & Match — side by side with green lines
+    if(activeTopic==="Keypoint Matching"||activeTopic==="Upload & Match"){
+      if(!refOut.current) return;
+      const GAP=4,CW=img1.W+img2.W+GAP,CH=Math.max(img1.H,img2.H);
+      refOut.current.width=CW; refOut.current.height=CH;
+      const ctx=refOut.current.getContext("2d");
       ctx.fillStyle="#06060e"; ctx.fillRect(0,0,CW,CH);
-      ctx.putImageData(img1.id,0,Math.round((CH-img1.H)/2));
-      ctx.putImageData(img2.id,img1.W+GAP,Math.round((CH-img2.H)/2));
-      
-      const show=matches.slice(0,100);
-      show.forEach(({i,j},idx)=>{
-        if(res && res.mask && !res.mask[idx]) return; 
-        ctx.strokeStyle="rgba(0,255,170,0.85)";
-        ctx.lineWidth=1.2;
+      const y1off=Math.round((CH-img1.H)/2),y2off=Math.round((CH-img2.H)/2);
+      ctx.putImageData(img1.id,0,y1off);
+      ctx.putImageData(img2.id,img1.W+GAP,y2off);
+      // Draw all match lines in green (like Python screenshot)
+      ctx.strokeStyle="rgba(0,255,160,0.8)"; ctx.lineWidth=1;
+      matches.slice(0,100).forEach(({i,j})=>{
         ctx.beginPath();
-        ctx.moveTo(kps1[i].x,Math.round((CH-img1.H)/2)+kps1[i].y);
-        ctx.lineTo(img1.W+GAP+kps2[j].x,Math.round((CH-img2.H)/2)+kps2[j].y);
+        ctx.moveTo(kps1[i].x,y1off+kps1[i].y);
+        ctx.lineTo(img1.W+GAP+kps2[j].x,y2off+kps2[j].y);
         ctx.stroke();
       });
-      ctx.fillStyle="#00ffaa";
-      show.forEach(({i,j},idx)=>{
-        if(res && res.mask && !res.mask[idx]) return;
-        ctx.beginPath();ctx.arc(kps1[i].x,Math.round((CH-img1.H)/2)+kps1[i].y,3,0,Math.PI*2);ctx.fill();
-        ctx.beginPath();ctx.arc(img1.W+GAP+kps2[j].x,Math.round((CH-img2.H)/2)+kps2[j].y,3,0,Math.PI*2);ctx.fill();
+      // Keypoint dots
+      ctx.fillStyle="#00ffa0";
+      matches.slice(0,100).forEach(({i,j})=>{
+        ctx.beginPath();ctx.arc(kps1[i].x,y1off+kps1[i].y,3,0,Math.PI*2);ctx.fill();
+        ctx.beginPath();ctx.arc(img1.W+GAP+kps2[j].x,y2off+kps2[j].y,3,0,Math.PI*2);ctx.fill();
       });
+      ctx.fillStyle="rgba(255,255,255,0.4)"; ctx.font="11px monospace";
+      ctx.fillText("Reference",6,y1off+14); ctx.fillText("Moving",img1.W+GAP+6,y2off+14);
     }
 
-    if(cOverlay.current && ovData){
-      cOverlay.current.width=dW; cOverlay.current.height=dH;
-      cOverlay.current.getContext("2d").putImageData(new ImageData(ovData,dW,dH),0,0);
+    // Homography — 3-panel + histograms
+    if(activeTopic==="Homography"){
+      if(!refOut.current) return;
+      const W1=img1.W,H1=img1.H,W2=img2.W,H2=img2.H;
+      const CH=Math.max(H1,H2,dH);
+      const ovW=ovData?dW:0;
+      const CW=W1+8+W2+8+ovW;
+      refOut.current.width=CW; refOut.current.height=CH;
+      const ctx=refOut.current.getContext("2d");
+      ctx.fillStyle="#06060e"; ctx.fillRect(0,0,CW,CH);
+      ctx.putImageData(img1.id,0,Math.round((CH-H1)/2));
+      ctx.putImageData(img2.id,W1+8,Math.round((CH-H2)/2));
+      if(ovData) ctx.putImageData(new ImageData(ovData,dW,dH),W1+W2+16,Math.round((CH-dH)/2));
+      ctx.fillStyle="rgba(255,255,255,0.4)"; ctx.font="10px monospace";
+      ctx.fillText("Reference (source)",4,14);
+      ctx.fillText("Moving (target)",W1+12,14);
+      if(ovData) ctx.fillText("Registered Overlay",W1+W2+20,14);
+      setTimeout(()=>{
+        drawHist(refH1,img1.data,img1.W,img1.H,"Reference");
+        drawHist(refH2,img2.data,img2.W,img2.H,"Moving");
+        if(warpData) drawHist(refH3,warpData,dW,dH,"Registered (valid px)",true);
+      },60);
     }
 
-    if(cRegistered.current && warpedData){
-      cRegistered.current.width=dW; cRegistered.current.height=dH;
-      const ctx=cRegistered.current.getContext("2d");
+    // Aligned Overlay — warped image on black background
+    if(activeTopic==="Aligned Overlay"){
+      if(!refOut.current||!warpData) return;
+      refOut.current.width=dW; refOut.current.height=dH;
+      const ctx=refOut.current.getContext("2d");
       ctx.fillStyle="#000000"; ctx.fillRect(0,0,dW,dH);
-      ctx.putImageData(new ImageData(warpedData,dW,dH),0,0);
+      ctx.putImageData(new ImageData(warpData,dW,dH),0,0);
     }
-  },[computed]);
 
-  const LBL={fontSize:9,letterSpacing:3,color:"rgba(255,255,255,0.2)",textTransform:"uppercase",marginBottom:5};
-  const BOX={background:"#06060e",border:"1px solid rgba(255,255,255,0.07)",borderRadius:4,overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",minHeight:110};
+    // Difference Map
+    if(activeTopic==="Difference Map"){
+      if(!refOut.current||!dfData) return;
+      refOut.current.width=dW; refOut.current.height=dH;
+      refOut.current.getContext("2d").putImageData(new ImageData(dfData,dW,dH),0,0);
+    }
+
+  },[result,activeTopic]);
+
+  /* ─── Styles ────────────────────────────────────────────────────────────── */
+  const S={
+    lbl:{fontSize:9,letterSpacing:3,color:"rgba(255,255,255,0.2)",textTransform:"uppercase",marginBottom:5},
+    box:{background:"#06060e",border:"1px solid rgba(255,255,255,0.07)",borderRadius:4,overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",minHeight:100},
+  };
+  const Chip=({l,v,c="#4cc9f0"})=>(
+    <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:3,padding:"6px 10px",textAlign:"center",minWidth:72}}>
+      <div style={{fontSize:8,letterSpacing:2,color:"rgba(255,255,255,0.25)",marginBottom:2}}>{l}</div>
+      <div style={{fontSize:13,fontWeight:"bold",color:c}}>{v}</div>
+    </div>
+  );
 
   return(
     <div style={{padding:14,overflowY:"auto",flex:1,display:"flex",flexDirection:"column",gap:10}}>
+
+      {/* Buttons */}
       <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
-        <button onClick={runAll} disabled={busy} style={{background:computed?"rgba(6,214,160,0.15)":"rgba(255,255,255,0.03)",border:`1px solid ${computed?color:"rgba(255,255,255,0.2)"}`,color:computed?color:"rgba(255,255,255,0.5)",padding:"8px 16px",cursor:"pointer",borderRadius:3,fontFamily:"monospace",fontSize:11,letterSpacing:1}}>
+        <button onClick={run} disabled={busy}
+          style={{background:result?"rgba(6,214,160,0.12)":"rgba(255,255,255,0.03)",
+            border:`1px solid ${result?color:"rgba(255,255,255,0.18)"}`,
+            color:result?color:"rgba(255,255,255,0.45)",padding:"8px 20px",
+            cursor:busy?"not-allowed":"pointer",borderRadius:3,
+            fontFamily:"monospace",fontSize:11,letterSpacing:1,opacity:busy?0.6:1}}>
           {busy?"⏳ Computing...":"⚡ Run Registration"}
         </button>
-        <button onClick={doReset} style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.35)",padding:"8px 14px",cursor:"pointer",borderRadius:3,fontFamily:"monospace",fontSize:11}}>↺ Reset</button>
+        <button onClick={reset}
+          style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.1)",
+            color:"rgba(255,255,255,0.3)",padding:"8px 14px",cursor:"pointer",borderRadius:3,
+            fontFamily:"monospace",fontSize:11}}>↺ Reset</button>
       </div>
-      {log&&<div style={{fontSize:10,color:computed?"#06d6a0":"#f77f00",background:computed?"rgba(6,214,160,0.06)":"rgba(247,127,0,0.06)",border:`1px solid ${computed?"rgba(6,214,160,0.2)":"rgba(247,127,0,0.2)"}`,borderRadius:3,padding:"5px 10px"}}>{log}</div>}
 
-      {!computed && <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-        {[
-          {label:"REFERENCE IMAGE",ref:c1,img:img1,set:setImg1,cl:color},
-          {label:"MOVING IMAGE",   ref:c2,img:img2,set:setImg2,cl:"#4cc9f0"},
-        ].map(({label,ref,img,set,cl})=>(
+      {/* Log */}
+      {log&&<div style={{fontSize:10,padding:"5px 10px",borderRadius:3,
+        background:result&&!busy?"rgba(6,214,160,0.06)":"rgba(247,127,0,0.06)",
+        border:`1px solid ${result&&!busy?"rgba(6,214,160,0.2)":"rgba(247,127,0,0.2)"}`,
+        color:result&&!busy?"#06d6a0":"#f77f00"}}>{log}</div>}
+
+      {/* Upload */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+        {[{label:"REFERENCE IMAGE",rr:ref1,img:img1,set:setImg1,cl:color},
+          {label:"MOVING IMAGE",   rr:ref2,img:img2,set:setImg2,cl:"#4cc9f0"}].map(({label,rr,img,set,cl})=>(
           <div key={label}>
-            <div style={LBL}>{label}</div>
-            <div style={{...BOX,border:`1px solid ${cl}33`,minHeight:150}}>
-              <canvas ref={ref} style={{maxWidth:"100%",maxHeight:190,display:"block"}}/>
+            <div style={S.lbl}>{label}</div>
+            <div style={{...S.box,border:`1px solid ${cl}30`,minHeight:140}}>
+              <canvas ref={rr} style={{maxWidth:"100%",maxHeight:180,display:"block"}}/>
             </div>
-            <label style={{display:"block",marginTop:5,textAlign:"center",background:`${cl}0f`,border:`1px solid ${cl}44`,color:cl,padding:"6px",cursor:"pointer",borderRadius:3,fontFamily:"monospace",fontSize:10,letterSpacing:1}}>
+            <label style={{display:"block",marginTop:5,textAlign:"center",
+              background:`${cl}10`,border:`1px solid ${cl}40`,color:cl,
+              padding:"5px",cursor:"pointer",borderRadius:3,fontFamily:"monospace",fontSize:10,letterSpacing:1}}>
               ⬆ {img?"Change Image":"Upload Image"}
-              <input type="file" accept="image/*" style={{display:"none"}} onChange={e=>e.target.files[0]&&loadImg(e.target.files[0],set,ref)}/>
+              <input type="file" accept="image/*" style={{display:"none"}}
+                onChange={e=>e.target.files[0]&&loadFile(e.target.files[0],set,rr)}/>
             </label>
           </div>
         ))}
+      </div>
+
+      {/* Stats */}
+      {result&&<div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
+        <Chip l="KP A"    v={result.kps1.length} c="#f72585"/>
+        <Chip l="KP B"    v={result.kps2.length} c="#06d6a0"/>
+        <Chip l="MATCHES" v={result.matches.length} c="#4361ee"/>
+        <Chip l="INLIERS" v={result.res?result.res.inliers:"—"} c="#f77f00"/>
+        <Chip l="SHIFT X" v={result.shX!=="—"?result.shX+"px":"—"} c="#4cc9f0"/>
+        <Chip l="SHIFT Y" v={result.shY!=="—"?result.shY+"px":"—"} c="#4cc9f0"/>
+        <Chip l="PSNR"    v={result.psnr!=="—"?result.psnr+" dB":"—"}
+          c={result.psnr>25?"#06d6a0":result.psnr>15?"#f77f00":"#f72585"}/>
       </div>}
 
-      {computed && <>
-        <div style={{display:"flex", flexDirection:"column", gap:15, marginTop:10}}>
+      {/* ── Topic views ── */}
+
+      {result&&activeTopic==="Feature Detection"&&<>
+        <div style={S.lbl}>FEATURE DETECTION — {result.kps1.length} + {result.kps2.length} KEYPOINTS</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
           <div>
-            <div style={{...LBL, color: "#00ffaa", fontWeight: "bold"}}>1. KEYPOINT MATCHES (INLIERS ONLY: {computed.res?computed.res.inliers:"0"})</div>
-            <div style={BOX}><canvas ref={cMatches} style={{maxWidth:"100%",display:"block"}}/></div>
+            <div style={{...S.lbl,color:"#f72585"}}>Reference ({result.kps1.length} KP)</div>
+            <div style={S.box}><canvas ref={ref1} style={{maxWidth:"100%",maxHeight:240,display:"block"}}/></div>
           </div>
-          <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:12}}>
-            <div>
-              <div style={{...LBL, color: "#4cc9f0", fontWeight: "bold"}}>2. OVERLAPPING IMAGE (REFERENCE OVER MOVING)</div>
-              <div style={BOX}><canvas ref={cOverlay} style={{maxWidth:"100%",maxHeight:350,display:"block"}}/></div>
-            </div>
-            <div>
-              <div style={{...LBL, color: "#f72585", fontWeight: "bold"}}>3. EXTRACTED REGISTERED IMAGE</div>
-              <div style={BOX}><canvas ref={cRegistered} style={{maxWidth:"100%",maxHeight:350,display:"block"}}/></div>
-            </div>
+          <div>
+            <div style={{...S.lbl,color:"#06d6a0"}}>Moving ({result.kps2.length} KP)</div>
+            <div style={S.box}><canvas ref={ref2} style={{maxWidth:"100%",maxHeight:240,display:"block"}}/></div>
           </div>
         </div>
       </>}
+
+      {result&&(activeTopic==="Keypoint Matching"||activeTopic==="Upload & Match")&&<>
+        <div style={S.lbl}>
+          KEYPOINT MATCHES — {result.matches.length} GOOD MATCHES
+          {result.res&&` | INLIERS: ${result.res.inliers}/${result.matches.length}`}
+        </div>
+        <div style={S.box}><canvas ref={refOut} style={{maxWidth:"100%",display:"block"}}/></div>
+      </>}
+
+      {result&&activeTopic==="Homography"&&<>
+        <div style={S.lbl}>REGISTRATION RESULT — SOURCE | TARGET | OVERLAY</div>
+        <div style={S.box}><canvas ref={refOut} style={{maxWidth:"100%",display:"block"}}/></div>
+        <div style={S.lbl}>RGB HISTOGRAM COMPARISON</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+          <div style={S.box}><canvas ref={refH1} style={{maxWidth:"100%",display:"block"}}/></div>
+          <div style={S.box}><canvas ref={refH2} style={{maxWidth:"100%",display:"block"}}/></div>
+          <div style={S.box}><canvas ref={refH3} style={{maxWidth:"100%",display:"block"}}/></div>
+        </div>
+      </>}
+
+      {result&&activeTopic==="Aligned Overlay"&&<>
+        <div style={S.lbl}>REGISTERED IMAGE (WARPED REFERENCE → MOVING SPACE)</div>
+        <div style={S.box}><canvas ref={refOut} style={{maxWidth:"100%",maxHeight:400,display:"block"}}/></div>
+      </>}
+
+      {result&&activeTopic==="Difference Map"&&<>
+        <div style={S.lbl}>DIFFERENCE MAP — BLUE: SIMILAR | RED: DIFFERENT</div>
+        <div style={S.box}><canvas ref={refOut} style={{maxWidth:"100%",maxHeight:400,display:"block"}}/></div>
+      </>}
+
+      {/* Instructions */}
+      {!result&&!busy&&<div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.05)",borderRadius:4,padding:14,fontSize:11,color:"rgba(255,255,255,0.35)",lineHeight:2.2}}>
+        <div style={{fontSize:10,letterSpacing:2,color,marginBottom:8}}>HOW TO USE</div>
+        1. Upload <span style={{color:"#f72585"}}>Reference Image</span> — image to locate in scene<br/>
+        2. Upload <span style={{color:"#4cc9f0"}}>Moving Image</span> — the target scene<br/>
+        3. Click <span style={{color:"#06d6a0"}}>Run Registration</span> — takes ~20 seconds<br/>
+        4. Switch between operations in the left panel:<br/>
+        &nbsp;&nbsp;• <span style={{color}}>Feature Detection</span> — keypoints on both images<br/>
+        &nbsp;&nbsp;• <span style={{color}}>Keypoint Matching</span> — green correspondence lines<br/>
+        &nbsp;&nbsp;• <span style={{color}}>Homography</span> — 3-panel result + RGB histograms<br/>
+        &nbsp;&nbsp;• <span style={{color}}>Aligned Overlay</span> — warped reference on black background<br/>
+        &nbsp;&nbsp;• <span style={{color}}>Difference Map</span> — pixel-level difference visualization
+      </div>}
     </div>
   );
 }
 
 
-// ----------------------------------------------------------
 // MAIN APP
 // ----------------------------------------------------------
-const REG_SPECIAL=["Unified Registration"];
-const MATCH_SPECIAL=["BF Match Viz"];
+const REG_SPECIAL=["Upload & Match","Feature Detection","Keypoint Matching","Homography","Aligned Overlay","Difference Map"];
+const MATCH_SPECIAL=["Upload & Match","BF Match Viz"];
 const PARAM_MAP={
   "Gamma":[{key:"gamma",label:"gamma",min:0.1,max:3,step:0.05}],
   "Bit-plane Slicing":[{key:"plane",label:"Plane",min:0,max:7,step:1}],
@@ -890,18 +1556,18 @@ export default function App(){
   const [diffMode,setDiffMode]=useState(false);
   const [webcamOn,setWebcamOn]=useState(false);
   const [webcamErr,setWebcamErr]=useState(null);
-  const [liveMode,setLiveMode]=useState('sobel'); 
+  const [liveMode,setLiveMode]=useState('sobel'); // 'sobel' | 'color' | 'capture'
   const [quizMode,setQuizMode]=useState(false);
   const [quizQ,setQuizQ]=useState(null);
   const [quizScore,setQuizScore]=useState({right:0,wrong:0});
   const [quizFeedback,setQuizFeedback]=useState(null);
   const [quizImgUrl,setQuizImgUrl]=useState(null);
-  const [mobTab,setMobTab]=useState('canvas'); 
-  
+  const [mobTab,setMobTab]=useState('canvas'); // 'modules'|'ops'|'canvas'|'theory'
   const origRef=useRef(null),procRef=useRef(null),fileRef=useRef(null),webcamRef=useRef(null),diffRef=useRef(null),streamRef=useRef(null),camFileRef=useRef(null),liveCanvasRef=useRef(null),animFrameRef=useRef(null);
 
   const isSpecialReg=activeMod.id==="registration"&&REG_SPECIAL.includes(activeTopic);
-  const showRegPanel=isSpecialReg;
+  const isSpecialMatch=activeMod.id==="matching"&&MATCH_SPECIAL.includes(activeTopic);
+  const showRegPanel=isSpecialReg||isSpecialMatch;
 
   useEffect(()=>{
     const c=document.createElement("canvas");c.width=320;c.height=320;
@@ -916,6 +1582,7 @@ export default function App(){
     for(let i=0;i<25;i++){ctx.fillStyle=`rgba(255,255,255,${Math.random()*0.8+0.2})`;ctx.beginPath();ctx.arc(Math.random()*320,Math.random()*320,Math.random()*3+1,0,Math.PI*2);ctx.fill();}
     const imageData=ctx.getImageData(0,0,320,320);
     setOrigData(imageData);
+    // Also draw directly to canvas if ref already mounted
     if(origRef.current){
       origRef.current.width=320;origRef.current.height=320;
       origRef.current.getContext("2d").putImageData(imageData,0,0);
@@ -928,6 +1595,7 @@ export default function App(){
     origRef.current.getContext("2d").putImageData(origData,0,0);
   },[origData]);
 
+  // Callback ref: draws immediately when canvas element mounts
   const origCanvasRef = useCallback((node)=>{
     origRef.current = node;
     if(node && origData){
@@ -944,6 +1612,8 @@ export default function App(){
       setProcData(result);
       if(procRef.current){procRef.current.width=result.width;procRef.current.height=result.height;procRef.current.getContext("2d").putImageData(result,0,0);}
     }catch(err){
+      console.error("processImg crash:",activeMod.id,activeTopic,err);
+      // Show error on canvas
       if(procRef.current){
         const c=procRef.current;c.width=320;c.height=160;
         const ctx=c.getContext("2d");
@@ -969,8 +1639,10 @@ export default function App(){
     };reader.readAsDataURL(file);e.target.value="";
   },[]);
 
+  // Stop webcam on unmount
   useEffect(()=>()=>{if(streamRef.current) streamRef.current.getTracks().forEach(t=>t.stop());},[]);
 
+  // Webcam toggle
   const toggleWebcam=useCallback(()=>{
     if(webcamOn){
       if(animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
@@ -981,7 +1653,7 @@ export default function App(){
       return;
     }
     if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
-      setWebcamErr("Camera API not available.");
+      setWebcamErr("Camera API not available. Make sure you are on localhost or HTTPS.");
       setWebcamOn(true);
       return;
     }
@@ -996,20 +1668,26 @@ export default function App(){
         setWebcamOn(true);
       })
       .catch(err=>{
-        setWebcamErr(err.name+": "+err.message);
+        let msg=err.name+": "+err.message;
+        if(err.name==="NotAllowedError") msg="Permission denied. Click the camera icon in your browser address bar and allow camera access, then try again.";
+        if(err.name==="NotFoundError") msg="No camera found on this device.";
+        setWebcamErr(msg);
         setWebcamOn(true);
       });
   },[webcamOn]);
 
+  // Live webcam render loop — runs every animation frame when webcam is on
   useEffect(()=>{
     if(!webcamOn){
       if(animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
       return;
     }
-    const KX=[[-1,0,1],[-2,0,2],[-1,0,1]], KY=[[-1,-2,-1],[0,0,0],[1,2,1]];
+    const KX=[[-1,0,1],[-2,0,2],[-1,0,1]];
+    const KY=[[-1,-2,-1],[0,0,0],[1,2,1]];
     const offscreen=document.createElement('canvas');
     const render=()=>{
-      const video=webcamRef.current, lc=liveCanvasRef.current;
+      const video=webcamRef.current;
+      const lc=liveCanvasRef.current;
       if(!video||!lc||!video.srcObject||video.readyState<2){animFrameRef.current=requestAnimationFrame(render);return;}
       const W=video.videoWidth||320,H=video.videoHeight||240;
       offscreen.width=W;offscreen.height=H;
@@ -1017,10 +1695,13 @@ export default function App(){
       const octx=offscreen.getContext('2d');
       octx.drawImage(video,0,0,W,H);
       const frame=octx.getImageData(0,0,W,H);
-      const N=W*H, gray=new Float32Array(N);
+      const N=W*H;
+      // build grayscale
+      const gray=new Float32Array(N);
       for(let i=0;i<N;i++) gray[i]=0.299*frame.data[i*4]+0.587*frame.data[i*4+1]+0.114*frame.data[i*4+2];
       const out=new Uint8ClampedArray(frame.data);
       if(liveMode==='sobel'||liveMode==='color'){
+        // Sobel gradient magnitude
         const gx=new Float32Array(N),gy=new Float32Array(N);
         for(let y=1;y<H-1;y++) for(let x=1;x<W-1;x++){
           let sx=0,sy=0;
@@ -1035,6 +1716,7 @@ export default function App(){
           if(liveMode==='sobel'){
             out[i*4]=Math.round(mag);out[i*4+1]=Math.round(mag);out[i*4+2]=Math.round(mag);
           } else {
+            // Neon color edges: map angle to hue
             const angle=(Math.atan2(gy[i],gx[i])+Math.PI)/(2*Math.PI);
             out[i*4]=Math.round(angle*mag);
             out[i*4+1]=Math.round((1-angle)*mag*0.8);
@@ -1043,6 +1725,7 @@ export default function App(){
           out[i*4+3]=255;
         }
       }
+      // else liveMode==='capture': show raw color feed
       lc.getContext('2d').putImageData(new ImageData(out,W,H),0,0);
       animFrameRef.current=requestAnimationFrame(render);
     };
@@ -1050,6 +1733,21 @@ export default function App(){
     return ()=>{if(animFrameRef.current) cancelAnimationFrame(animFrameRef.current);};
   },[webcamOn,liveMode]);
 
+  // Handle camera file input fallback
+  const handleCamFile=useCallback((e)=>{
+    const file=e.target.files?.[0];if(!file) return;
+    const reader=new FileReader();
+    reader.onload=(ev)=>{
+      const img=new Image();
+      img.onload=()=>{
+        const c=document.createElement("canvas");c.width=320;c.height=320;
+        c.getContext("2d").drawImage(img,0,0,320,320);
+        setOrigData(c.getContext("2d").getImageData(0,0,320,320));
+      };img.src=ev.target.result;
+    };reader.readAsDataURL(file);e.target.value="";
+  },[]);
+
+  // Capture webcam frame
   const captureWebcam=useCallback(()=>{
     if(!webcamRef.current) return;
     const c=document.createElement("canvas");c.width=320;c.height=320;
@@ -1057,6 +1755,7 @@ export default function App(){
     setOrigData(c.getContext("2d").getImageData(0,0,320,320));
   },[]);
 
+  // Diff overlay effect
   useEffect(()=>{
     if(!diffMode||!origData||!procData||!diffRef.current) return;
     const c=diffRef.current;c.width=origData.width;c.height=origData.height;
@@ -1071,15 +1770,18 @@ export default function App(){
     ctx.putImageData(new ImageData(diff,origData.width,origData.height),0,0);
   },[diffMode,origData,procData]);
 
+  // Export processed image
   const exportImage=useCallback(()=>{
     if(!procRef.current) return;
     const a=document.createElement("a");a.download=`${activeMod.id}_${activeTopic.replace(/\s/g,"_")}.png`;
     a.href=procRef.current.toDataURL("image/png");a.click();
   },[activeMod,activeTopic]);
 
+  // Quiz
   const startQuiz=useCallback(()=>{
     const allOps=MODULES.flatMap(m=>m.topics.map(t=>({mod:m,topic:t})));
     const q=allOps[Math.floor(Math.random()*allOps.length)];
+    // Generate 4 answer choices
     const correct=q.mod.label+" > "+q.topic;
     const others=allOps.filter(o=>o.topic!==q.topic).sort(()=>Math.random()-0.5).slice(0,3).map(o=>o.mod.label+" > "+o.topic);
     const choices=[correct,...others].sort(()=>Math.random()-0.5);
@@ -1094,6 +1796,7 @@ export default function App(){
     setTimeout(()=>startQuiz(),1500);
   },[quizQ,startQuiz]);
 
+  // Generate quiz preview image when question changes
   useEffect(()=>{
     if(!quizQ) return;
     const src=origData||{width:160,height:160,data:new Uint8ClampedArray(160*160*4).fill(180)};
@@ -1107,6 +1810,8 @@ export default function App(){
 
   const selMod=(mod)=>{setActiveMod(mod);setActiveTopic(mod.topics[0]);setTheory(null);};
   const curParams=PARAM_MAP[activeTopic]||[];
+
+  const isMob = typeof window!=='undefined' && window.innerWidth<=768;
 
   return(
     <div style={{display:"flex",height:"100vh",background:"#070710",fontFamily:"'Share Tech Mono','Courier New',monospace",color:"#dde0ff",overflow:"hidden"}}>
@@ -1139,51 +1844,111 @@ export default function App(){
         .mob-overlay{display:none;}
 
         @media(max-width:768px){
+          /* Hide desktop sidebar, left panel and desktop tool buttons */
           .desktop-sidebar{display:none !important;}
           .desktop-left{display:none !important;}
           .desktop-tools{display:none !important;}
+
+          /* Bottom navigation bar */
           .mob-nav{
             display:flex !important;
             position:fixed;bottom:0;left:0;right:0;
-            height:60px; background:#06060e;
+            height:60px;
+            background:#06060e;
             border-top:1px solid rgba(255,255,255,0.15);
-            z-index:9999; align-items:stretch; padding:0 4px;
+            z-index:9999;
+            align-items:stretch;
+            padding:0 4px;
             box-shadow:0 -4px 20px rgba(0,0,0,0.6);
           }
           .mob-nav-btn{
-            flex:1;background:none;border:none; cursor:pointer;
-            display:flex;flex-direction:column; align-items:center;justify-content:center;
-            gap:3px; font-size:7.5px;letter-spacing:0.8px; color:rgba(255,255,255,0.3);
-            font-family:'Share Tech Mono',monospace; padding:6px 2px; transition:all 0.15s;
+            flex:1;background:none;border:none;
+            cursor:pointer;
+            display:flex;flex-direction:column;
+            align-items:center;justify-content:center;
+            gap:3px;
+            font-size:7.5px;letter-spacing:0.8px;
+            color:rgba(255,255,255,0.3);
+            font-family:'Share Tech Mono',monospace;
+            padding:6px 2px;
+            transition:all 0.15s;
             border-top:2px solid transparent;
           }
           .mob-nav-btn.a{color:var(--mc,#4cc9f0);border-top-color:var(--mc,#4cc9f0);}
           .mob-nav-btn span.ico{font-size:20px;line-height:1;}
+
+          /* Full-screen overlays for modules and ops panels */
           .mob-overlay{
-            display:none; position:fixed;top:54px;left:0;right:0;bottom:60px;
-            background:#06060e; z-index:500; overflow-y:auto; padding:14px 14px 20px;
-            animation:fu 0.18s ease; border-top:1px solid rgba(255,255,255,0.06);
+            display:none;
+            position:fixed;top:54px;left:0;right:0;bottom:60px;
+            background:#06060e;
+            z-index:500;
+            overflow-y:auto;
+            padding:14px 14px 20px;
+            animation:fu 0.18s ease;
+            border-top:1px solid rgba(255,255,255,0.06);
           }
           .mob-overlay.open{display:block;}
-          .mob-header{padding:8px 12px !important; flex-wrap:wrap; gap:6px !important; padding-bottom:8px !important;}
+
+          /* Header adjustments */
+          .mob-header{
+            padding:8px 12px !important;
+            flex-wrap:wrap;
+            gap:6px !important;
+            padding-bottom:8px !important;
+          }
           .mob-title-block{flex:1;min-width:0;}
-          .mob-tool-row{display:flex;flex-wrap:wrap; gap:5px;width:100%; margin-top:2px;}
-          .mob-tool-row .ub{padding:7px 10px !important; font-size:10px !important; letter-spacing:1px !important; flex:1;min-width:70px; text-align:center;}
+          .mob-tool-row{
+            display:flex;flex-wrap:wrap;
+            gap:5px;width:100%;
+            margin-top:2px;
+          }
+          .mob-tool-row .ub{
+            padding:7px 10px !important;
+            font-size:10px !important;
+            letter-spacing:1px !important;
+            flex:1;min-width:70px;
+            text-align:center;
+          }
+
+          /* Main body needs bottom padding for nav bar */
           .mob-body{padding-bottom:68px !important;overflow-y:auto;}
+
+          /* Canvas sizing on mobile */
           canvas{max-height:180px !important;}
           .cw{min-height:100px;}
-          .ch{font-size:12px !important; padding:8px 13px !important; margin:4px !important;}
+
+          /* Bigger touch targets for chips */
+          .ch{
+            font-size:12px !important;
+            padding:8px 13px !important;
+            margin:4px !important;
+          }
+
+          /* Bigger sliders for touch */
           .sl{height:6px !important;}
-          .sl::-webkit-slider-thumb{width:22px !important; height:22px !important;}
-          .canvas-grid{grid-template-columns:1fr 1fr !important; gap:8px !important;}
+          .sl::-webkit-slider-thumb{
+            width:22px !important;
+            height:22px !important;
+          }
+
+          /* Canvas grid: 2 columns on tablet, 1 on phone */
+          .canvas-grid{
+            grid-template-columns:1fr 1fr !important;
+            gap:8px !important;
+          }
         }
+
         @media(max-width:480px){
+          /* Single column canvas on small phones */
           .canvas-grid{grid-template-columns:1fr !important;}
           canvas{max-height:220px !important;}
           .mob-nav-btn{font-size:7px;}
           .mob-nav-btn span.ico{font-size:17px;}
         }
+
         @media(min-width:769px){
+          /* Desktop: hide mobile elements */
           .mob-nav{display:none !important;}
           .mob-overlay{display:none !important;}
           .mob-tool-row{display:none !important;}
@@ -1329,6 +2094,7 @@ export default function App(){
                       <button className="ub" style={{fontSize:10,padding:"4px 10px",borderColor:"rgba(6,214,160,0.4)",color:"#06d6a0"}} onClick={captureWebcam}>⚡ CAPTURE</button>
                     </div>
                   </div>
+                  {/* Hidden video — needed for stream, hidden behind live canvas */}
                   <video ref={webcamRef} autoPlay playsInline muted style={{display:"none"}}/>
                   <div style={{display:"flex",justifyContent:"center",background:"#000",borderRadius:3,overflow:"hidden",position:"relative"}}>
                     <canvas ref={liveCanvasRef} style={{maxWidth:"100%",maxHeight:240,display:"block"}}/>
@@ -1389,7 +2155,6 @@ export default function App(){
           </div>
         </div>
       </div>
-      
       {/* ── MOBILE BOTTOM NAV ─────────────────────────────── */}
       <nav className="mob-nav" style={{"--mc":activeMod.color}}>
         {[
@@ -1406,7 +2171,7 @@ export default function App(){
         ))}
       </nav>
 
-      {/* ── MOBILE OVERLAYS ─────────────────────────── */}
+      {/* ── MOBILE MODULES OVERLAY ─────────────────────────── */}
       <div className={`mob-overlay${mobTab==='modules'?' open':''}`}>
         <div style={{fontFamily:"'Orbitron',monospace",fontSize:10,color:"#4cc9f0",letterSpacing:2,marginBottom:12}}>SELECT MODULE</div>
         {MODULES.map(mod=>(
@@ -1423,6 +2188,7 @@ export default function App(){
         ))}
       </div>
 
+      {/* ── MOBILE OPS OVERLAY ─────────────────────────────── */}
       <div className={`mob-overlay${mobTab==='ops'?' open':''}`}>
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
           <span style={{fontSize:22}}>{activeMod.icon}</span>
@@ -1453,6 +2219,7 @@ export default function App(){
         </>}
       </div>
 
+      {/* ── MOBILE THEORY OVERLAY ──────────────────────────── */}
       <div className={`mob-overlay${mobTab==='theory'?' open':''}`}>
         <div className="lbl" style={{marginTop:0}}>Theory — {activeMod.label}</div>
         {Object.entries(activeMod.theory||{}).map(([k,v])=>(
