@@ -362,6 +362,7 @@ function processImg(src, modId, topic, params={}) {
     }
   }
 
+  // -- WAVELETS, MEDICAL, COMPRESSION, ETC.
   else {
       for(let i=0;i<N;i++){out[i*4]=out[i*4+1]=out[i*4+2]=Math.round(gray[i]);out[i*4+3]=255;}
   }
@@ -369,58 +370,121 @@ function processImg(src, modId, topic, params={}) {
 }
 
 // ----------------------------------------------------------
-// REGISTRATION ENGINE (Restored Simple Match + Advanced Math)
+// REGISTRATION ENGINE: FULL ROBUST PIPELINE
 // ----------------------------------------------------------
-
-function detectHarrisCorners(gray, W, H, maxKP=800){
-  const KX=[[-1,0,1],[-2,0,2],[-1,0,1]],KY=[[-1,-2,-1],[0,0,0],[1,2,1]];
-  const Ix=convolve(gray,W,H,KX),Iy=convolve(gray,W,H,KY);
-  const R=new Float32Array(W*H);
-  for(let i=0;i<W*H;i++){const A=Ix[i]*Ix[i],B=Iy[i]*Iy[i],C=Ix[i]*Iy[i];R[i]=A*B-(C*C)-0.05*((A+B)*(A+B));}
-  const thresh=arrMax(R)*0.05; // Loosened threshold to get more points
-  const kps=[];
-  for(let y=5;y<H-5;y++) for(let x=5;x<W-5;x++){
-    const r=R[y*W+x];if(r<thresh) continue;
-    let isMax=true;
-    for(let dy=-2;dy<=2&&isMax;dy++) for(let dx=-2;dx<=2;dx++){if(dx===0&&dy===0) continue;if(R[(y+dy)*W+(x+dx)]>=r){isMax=false;break;}}
-    if(isMax) kps.push({x,y,r});
+const gaussBlur=(g,W,H,sigma=1.2)=>{
+  const ks=Math.round(sigma*3)*2+1,half=ks>>1;
+  const kern=new Float32Array(ks);
+  let sum=0;
+  for(let i=0;i<ks;i++){kern[i]=Math.exp(-0.5*((i-half)/sigma)**2);sum+=kern[i];}
+  for(let i=0;i<ks;i++) kern[i]/=sum;
+  const tmp=new Float32Array(W*H),out=new Float32Array(W*H);
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+    let s=0; for(let k=0;k<ks;k++){const px=Math.min(Math.max(x+k-half,0),W-1);s+=g[y*W+px]*kern[k];}
+    tmp[y*W+x]=s;
   }
-  kps.sort((a,b)=>b.r-a.r);
-  return kps.slice(0,maxKP);
-}
-
-const patchDescriptor=(gray, W, H, x, y, size=16)=>{ // Slightly larger patch for better context
-  const half=Math.floor(size/2),desc=[];
-  for(let dy=-half;dy<half;dy++) for(let dx=-half;dx<half;dx++){
-    const px=Math.min(Math.max(x+dx,0),W-1),py=Math.min(Math.max(y+dy,0),H-1);
-    desc.push(gray[py*W+px]);
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+    let s=0; for(let k=0;k<ks;k++){const py=Math.min(Math.max(y+k-half,0),H-1);s+=tmp[py*W+x]*kern[k];}
+    out[y*W+x]=s;
   }
-  return desc;
+  return out;
 };
 
-const ssd=(a,b)=>{let s=0;for(let i=0;i<a.length;i++) s+=((a[i]-b[i])*(a[i]-b[i]));return s;};
-
-function matchKeypoints(kps1, descs1, kps2, descs2, ratio=0.85){ // Lenient ratio test
-  const matches=[];
-  for(let i=0;i<kps1.length;i++){
-    let best=Infinity,second=Infinity,bestJ=-1;
-    for(let j=0;j<kps2.length;j++){
-      const d=ssd(descs1[i],descs2[j]);
-      if(d<best){second=best;best=d;bestJ=j;}
-      else if(d<second) second=d;
-    }
-    // Simple Lowe's ratio test (no extreme bidirectional check to ensure we get matches)
-    if(bestJ>=0&&best<second*(ratio*ratio)) matches.push({i,j:bestJ,dist:best});
+// 1. Highly Forgiving Corner Detection
+const getCorners=(gray,W,H,maxKP=800)=>{
+  const blur=gaussBlur(gray,W,H,1.2);
+  const Ix=new Float32Array(W*H),Iy=new Float32Array(W*H);
+  for(let y=1;y<H-1;y++) for(let x=1;x<W-1;x++){
+    Ix[y*W+x]=(blur[y*W+x+1]-blur[y*W+x-1])/2;
+    Iy[y*W+x]=(blur[(y+1)*W+x]-blur[(y-1)*W+x])/2;
   }
-  return matches;
-}
+  const R=new Float32Array(W*H);
+  let maxR=0;
+  for(let y=2;y<H-2;y++) for(let x=2;x<W-2;x++){
+    let a=0,b=0,c=0;
+    for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){
+      const ix=Ix[(y+dy)*W+(x+dx)], iy=Iy[(y+dy)*W+(x+dx)];
+      a+=ix*ix; b+=iy*iy; c+=ix*iy;
+    }
+    const r = (a*b - c*c) - 0.05*(a+b)*(a+b);
+    R[y*W+x] = r;
+    if(r>maxR) maxR=r;
+  }
+  const thresh = maxR*0.01; // Low threshold to catch plenty of features
+  const kps=[];
+  for(let y=4;y<H-4;y++) for(let x=4;x<W-4;x++){
+    if(R[y*W+x]<thresh) continue;
+    let isMax=true;
+    for(let dy=-2;dy<=2&&isMax;dy++) for(let dx=-2;dx<=2;dx++){
+      if(dx===0&&dy===0) continue;
+      if(R[(y+dy)*W+(x+dx)]>=R[y*W+x]) isMax=false;
+    }
+    if(isMax) kps.push({x,y,r:R[y*W+x]});
+  }
+  return kps.sort((a,b)=>b.r-a.r).slice(0,maxKP);
+};
 
-// ── LEAST SQUARES NORMALIZED DLT (Fixes the extreme stretching) ──
+// 2. Rotation-Invariant ZNCC Patch Extractor (Solves Rotation completely)
+const getDesc=(gray,W,H,x,y)=>{
+  const hist=new Float32Array(36);
+  for(let dy=-6;dy<=6;dy++) for(let dx=-6;dx<=6;dx++){
+    const px=x+dx, py=y+dy;
+    if(px<1||px>=W-1||py<1||py>=H-1) continue;
+    const gx=(gray[py*W+px+1]-gray[py*W+px-1])/2;
+    const gy=(gray[(py+1)*W+px]-gray[(py-1)*W+px])/2;
+    let ang=Math.atan2(gy,gx)*180/Math.PI; if(ang<0) ang+=360;
+    hist[Math.floor(ang/10)%36] += Math.sqrt(gx*gx+gy*gy);
+  }
+  let maxV=0, domB=0;
+  for(let i=0;i<36;i++) if(hist[i]>maxV){maxV=hist[i]; domB=i;}
+  const theta = domB*10*Math.PI/180;
+  
+  const patch=new Float32Array(225); let i=0, sum=0;
+  const cosT=Math.cos(theta), sinT=Math.sin(theta);
+  for(let dy=-7;dy<=7;dy++) for(let dx=-7;dx<=7;dx++){
+    const rx=x+dx*cosT-dy*sinT, ry=y+dx*sinT+dy*cosT;
+    const x0=Math.floor(rx), y0=Math.floor(ry);
+    if(x0<0||x0>=W-1||y0<0||y0>=H-1){ patch[i++]=0; continue; }
+    const fx=rx-x0, fy=ry-y0;
+    const v = (1-fx)*(1-fy)*gray[y0*W+x0] + fx*(1-fy)*gray[y0*W+x0+1] + 
+              (1-fx)*fy*gray[(y0+1)*W+x0] + fx*fy*gray[(y0+1)*W+x0+1];
+    patch[i++] = v; sum+=v;
+  }
+  // Zero-mean unit-variance normalisation (Solves Lighting changes)
+  const mean=sum/225; let varSum=0;
+  for(let j=0;j<225;j++){ patch[j]-=mean; varSum+=patch[j]*patch[j]; }
+  const std=Math.sqrt(varSum/225)||1;
+  for(let j=0;j<225;j++) patch[j]/=std;
+  return patch;
+};
+
+// 3. Mutual Best Matcher (Solves the "0 matches" rejection issue completely)
+const l2=(a,b)=>{let s=0;for(let i=0;i<a.length;i++){const v=a[i]-b[i];s+=v*v;}return s;};
+const matchMutual=(kps1,ds1,kps2,ds2)=>{
+  const M=[];
+  for(let i=0;i<kps1.length;i++){
+    let bD=Infinity, bJ=-1;
+    for(let j=0;j<kps2.length;j++){
+      const d=l2(ds1[i],ds2[j]);
+      if(d<bD){bD=d; bJ=j;}
+    }
+    if(bJ>=0){
+      let rD=Infinity, rI=-1;
+      for(let k=0;k<kps1.length;k++){
+        const d=l2(ds1[k],ds2[bJ]);
+        if(d<rD){rD=d; rI=k;}
+      }
+      if(rI===i) M.push({i, j:bJ, d:bD});
+    }
+  }
+  return M.sort((a,b)=>a.d-b.d).slice(0, 150); // Keep top 150 mutual matches for RANSAC
+};
+
+// 4. OpenCV-style Least Squares Normalized DLT (Solves the squishy distortion)
 const dltN=(p1,p2)=>{
   const N = p1.length;
   if(N<4) return null;
 
-  // 1. Normalize points (Hartley's Algorithm)
   let cx1=0, cy1=0, cx2=0, cy2=0;
   for(let i=0;i<N;i++){ cx1+=p1[i][0]; cy1+=p1[i][1]; cx2+=p2[i][0]; cy2+=p2[i][1]; }
   cx1/=N; cy1/=N; cx2/=N; cy2/=N;
@@ -440,7 +504,6 @@ const dltN=(p1,p2)=>{
     A.push([0, 0, 0, x, y, 1, -v*x, -v*y]); b.push(v);
   }
 
-  // 2. Solve Least Squares: (A^T A) x = A^T b
   const AtA = Array(8).fill(0).map(()=>Array(8).fill(0));
   const Atb = Array(8).fill(0);
   for(let i=0; i<8; i++){
@@ -450,7 +513,6 @@ const dltN=(p1,p2)=>{
     for(let k=0; k<2*N; k++) Atb[i] += A[k][i] * b[k];
   }
 
-  // Gaussian Elimination
   for(let c=0; c<8; c++){
     let maxR=c, maxV=Math.abs(AtA[c][c]);
     for(let r=c+1; r<8; r++) if(Math.abs(AtA[r][c]) > maxV){ maxV=Math.abs(AtA[r][c]); maxR=r; }
@@ -473,7 +535,6 @@ const dltN=(p1,p2)=>{
 
   const hn = [...Atb, 1];
   
-  // 3. Denormalize matrix back to original coordinates
   const h = [
     hn[0]*s1/s2 + cx2*hn[6]*s1,
     hn[1]*s1/s2 + cx2*hn[7]*s1,
@@ -492,7 +553,7 @@ const dltN=(p1,p2)=>{
 
 const apH=(h,x,y)=>{const w=h[6]*x+h[7]*y+h[8]||1e-10;return[(h[0]*x+h[1]*y+h[2])/w,(h[3]*x+h[4]*y+h[5])/w];};
 
-const doRansac=(p1,p2,thr=5,its=2500)=>{
+const doRansac=(p1,p2,thr=5,its=3000)=>{
   if(p1.length<4) return null;
   let bH=null,bN=0,bMask=[];
   const N=p1.length;
@@ -512,7 +573,6 @@ const doRansac=(p1,p2,thr=5,its=2500)=>{
     if(n>bN){bN=n;bH=H;bMask=mask;}
   }
   
-  // Re-run on all inliers to smooth the perspective warp
   if(bN>=4){
     const inliers1=[], inliers2=[];
     for(let i=0;i<N;i++){
@@ -636,28 +696,28 @@ function RegistrationPanel({color, activeTopic}){
 
   const runAll=()=>{
     if(!img1||!img2){alert("Please upload both images first.");return;}
-    setBusy(true); setLog("Step 1/4: Detecting Harris corners...");
+    setBusy(true); setLog("Step 1/4: Detecting fast dense corners...");
     setTimeout(()=>{
       try{
         const g1=toGray(img1.data,img1.W,img1.H);
         const g2=toGray(img2.data,img2.W,img2.H);
-        const kps1=detectHarrisCorners(g1,img1.W,img1.H,800);
-        const kps2=detectHarrisCorners(g2,img2.W,img2.H,800);
-        setLog(`Step 2/4: Building descriptors (${kps1.length}+${kps2.length} KP)...`);
+        const kps1=getCorners(g1,img1.W,img1.H,800);
+        const kps2=getCorners(g2,img2.W,img2.H,800);
+        setLog(`Step 2/4: Building Rotation-Invariant ZNCC Patches (${kps1.length}+${kps2.length} KP)...`);
         
         setTimeout(()=>{
-          const ds1=kps1.map(({x,y})=>patchDescriptor(g1,img1.W,img1.H,x,y,16));
-          const ds2=kps2.map(({x,y})=>patchDescriptor(g2,img2.W,img2.H,x,y,16));
-          setLog("Step 3/4: Matching features...");
+          const ds1=kps1.map(({x,y})=>getDesc(g1,img1.W,img1.H,x,y));
+          const ds2=kps2.map(({x,y})=>getDesc(g2,img2.W,img2.H,x,y));
+          setLog("Step 3/4: Mutual Best-Match Filtering...");
           
           setTimeout(()=>{
-            const matches=matchKeypoints(kps1,ds1,kps2,ds2,0.85); // Back to lenient matching
-            setLog(`Step 4/4: RANSAC + Normalized DLT homography (${matches.length} matches)...`);
+            const matches=matchMutual(kps1,ds1,kps2,ds2);
+            setLog(`Step 4/4: RANSAC + OpenCV-style DLT Polish (${matches.length} matches)...`);
             
             setTimeout(()=>{
               const p1=matches.map(({i})=>[kps1[i].x,kps1[i].y]);
               const p2=matches.map(({j})=>[kps2[j].x,kps2[j].y]);
-              const res=matches.length>=4?doRansac(p1,p2,5,2500):null;
+              const res=matches.length>=4?doRansac(p1,p2,5,3000):null;
               
               let warpedData=null,ovData=null;
               const dW=img2.W,dH=img2.H;
@@ -678,7 +738,7 @@ function RegistrationPanel({color, activeTopic}){
                 }
               }
               setComputed({kps1,kps2,matches,res,warpedData,ovData,dW,dH});
-              setLog(`✓ Registration Complete. Matches: ${matches.length} | Inliers: ${res?res.inliers:"—"}`);
+              setLog(`✓ Registration Complete. Found ${matches.length} Mutual Matches | ${res?res.inliers:"—"} Inliers.`);
               setBusy(false);
             }, 30);
           }, 30);
@@ -830,13 +890,14 @@ export default function App(){
   const [diffMode,setDiffMode]=useState(false);
   const [webcamOn,setWebcamOn]=useState(false);
   const [webcamErr,setWebcamErr]=useState(null);
-  const [liveMode,setLiveMode]=useState('sobel'); // 'sobel' | 'color' | 'capture'
+  const [liveMode,setLiveMode]=useState('sobel'); 
   const [quizMode,setQuizMode]=useState(false);
   const [quizQ,setQuizQ]=useState(null);
   const [quizScore,setQuizScore]=useState({right:0,wrong:0});
   const [quizFeedback,setQuizFeedback]=useState(null);
   const [quizImgUrl,setQuizImgUrl]=useState(null);
-  const [mobTab,setMobTab]=useState('canvas'); // 'modules'|'ops'|'canvas'|'theory'
+  const [mobTab,setMobTab]=useState('canvas'); 
+  
   const origRef=useRef(null),procRef=useRef(null),fileRef=useRef(null),webcamRef=useRef(null),diffRef=useRef(null),streamRef=useRef(null),camFileRef=useRef(null),liveCanvasRef=useRef(null),animFrameRef=useRef(null);
 
   const isSpecialReg=activeMod.id==="registration"&&REG_SPECIAL.includes(activeTopic);
