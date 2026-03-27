@@ -81,8 +81,19 @@ const MODULES = [
     theory:{ "Optical Flow":"Apparent pixel motion between frames. Constraint: I_x*u + I_y*v + I_t = 0. Ill-posed without additional assumption.", "Lucas-Kanade":"Assumes constant flow in local window. Solves 2x2 least-squares system. Fast, but fails at motion boundaries.", "Horn-Schunck":"Global smoothness regularization. Minimizes data+smoothness terms. Dense flow but blurs motion edges.", "Temporal Difference":"I(t)-I(t-1). Simple motion detector. Simulated here via blurred/original difference." }},
 
   { id:"matching",   icon:"🔗", label:"Feature Matching & Model Fitting", color:"#e9c46a",
-    topics:["Upload & Match","BF Match Viz","Ratio Test Viz","RANSAC Demo","Homography Warp","Similarity Map","Corner Response","Distance Map","Edge+Corner","Template Match","KD-tree Sim","LSH Sim"],
-    theory:{ "BF Matching":"Compare all descriptor pairs. O(N^2). Exact. Use Hamming for binary, L2 for float.", "Ratio Test":"Accept if d1/d2<0.7-0.8. Rejects ambiguous matches. Lowe's key insight.", "RANSAC":"Random sample->fit->inliers->repeat. Handles up to 50% outliers.", "KD-Tree":"Binary space partition. O(log N) approx NN. Best for d<20 dimensions.", "LSH":"Hash similar items to same bucket. O(1) approx NN for high-dimensional binary descriptors.", "EMD":"Earth Mover's Distance. Min transport cost between distributions." }},
+    topics:["Ratio Test Viz","RANSAC Demo","Homography Warp","Similarity Map","Corner Response","Distance Map","Edge+Corner","Template Match","KD-tree Sim","LSH Sim"],
+    theory:{
+      "Ratio Test":"Lowe's ratio test: accept match if d1/d2 < 0.7-0.8 where d1=best distance, d2=second best. Rejects ambiguous matches. Fundamental to reliable feature matching.",
+      "RANSAC":"Random Sample Consensus: randomly sample minimal point set → fit model → count inliers (points within threshold ε). Repeat N times, keep best. Robust to up to 50% outliers.",
+      "Homography Warp":"Perspective transform H (3×3 matrix) maps one plane to another. Computed from 4+ point correspondences. Used to correct viewpoint changes between images.",
+      "Similarity Map":"Measures local similarity between image regions using normalized cross-correlation (NCC) or sum of squared differences (SSD). High values indicate matching regions.",
+      "Corner Response":"Harris corner response R = det(M) - k·trace²(M) where M = structure tensor. R>0: corner, R<0: edge, R≈0: flat. Threshold on R selects strong corners.",
+      "Distance Map":"Distance transform: for each pixel assigns the distance to the nearest feature point. Used in shape matching, path planning, and chamfer matching.",
+      "Edge+Corner":"Combined edge and corner visualization: gradient magnitude (Sobel) overlaid with Harris corner detections. Shows both structural and point features together.",
+      "Template Match":"Slide a template over the image computing NCC or SSD at each position. Peak response indicates best match location. O(W·H·w·h) complexity.",
+      "KD-Tree Sim":"K-dimensional tree: recursively splits feature space by alternating dimensions. O(log N) approximate nearest-neighbor search. Best for descriptors with d<20 dimensions.",
+      "LSH Sim":"Locality-Sensitive Hashing: maps similar high-dimensional descriptors to same hash bucket with high probability. Enables O(1) approximate matching for binary descriptors."
+    }},
 ];
 
 // ----------------------------------------------------------
@@ -1036,7 +1047,7 @@ function RegistrationPanel({color, activeTopic}){
 // MAIN APP
 // ----------------------------------------------------------
 const REG_SPECIAL=[]; // Registration removed - geometric transforms use standard processImg
-const MATCH_SPECIAL=["Upload & Match","BF Match Viz"];
+const MATCH_SPECIAL=[]; // removed Upload & Match and BF Match Viz - use processImg directly
 const PARAM_MAP={
   "Gamma":[{key:"gamma",label:"gamma",min:0.1,max:3,step:0.05}],
   "Bit-plane Slicing":[{key:"plane",label:"Plane",min:0,max:7,step:1}],
