@@ -1,9 +1,9 @@
 // @ts-nocheck
 import React, { useState, useRef, useEffect, useCallback } from "react";
 
-// ----------------------------------------------------------
+
 // MODULES DEFINITION
-// ----------------------------------------------------------
+
 const MODULES = [
   { id:"intensity",  icon:"⚡", label:"Intensity Transformations",       color:"#f72585",
     topics:["Negative","Log Transform","Gamma","Contrast Stretch","Bit-plane Slicing","Thresholding","Sigmoid","Histogram Stretch"],
@@ -96,9 +96,9 @@ const MODULES = [
     }},
 ];
 
-// ----------------------------------------------------------
+
 // CORE PROCESSING ENGINE
-// ----------------------------------------------------------
+
 function convolve(gray, W, H, kernel) {
   const k = kernel.length, kh = Math.floor(k/2);
   const res = new Float32Array(W*H);
@@ -137,7 +137,7 @@ function processImg(src, modId, topic, params={}) {
   const GAUSS=[[1,2,1],[2,4,2],[1,2,1]].map(r=>r.map(v=>v/16));
   const MEAN=[[1,1,1],[1,1,1],[1,1,1]].map(r=>r.map(v=>v/9));
 
-  // -- INTENSITY --
+  //  INTENSITY 
   if (modId==="intensity") {
     const g=params.gamma||1, T=params.thresh||128, plane=params.plane||7, k=params.k||0.1;
     // Pre-compute for Histogram Stretch — must be OUTSIDE the pixel loop
@@ -156,7 +156,7 @@ function processImg(src, modId, topic, params={}) {
     }
   }
 
-  // -- HISTOGRAM --
+  //  HISTOGRAM 
   else if(modId==="histogram"){
     const hist=new Array(256).fill(0);
     for(let i=0;i<N;i++) hist[Math.round(gray[i])]++;
@@ -214,7 +214,7 @@ function processImg(src, modId, topic, params={}) {
     }
   }
 
-  // -- SPATIAL --
+  //  SPATIAL 
   else if(modId==="spatial"){
     const median3=()=>{
       for(let y=0;y<H;y++) for(let x=0;x<W;x++){
@@ -244,7 +244,7 @@ function processImg(src, modId, topic, params={}) {
     }
   }
 
-  // -- FREQUENCY --
+  //  FREQUENCY 
   else if(modId==="frequency"){
     const D0=params.d0||40,n=params.n||2;
     const cx=W/2,cy=H/2;
@@ -278,7 +278,7 @@ function processImg(src, modId, topic, params={}) {
     }
   }
 
-  // -- RESTORATION --
+  //  RESTORATION 
   else if(modId==="restoration"){
     const sigma=params.sigma||20;
     if(topic==="Add Gaussian Noise"){
@@ -319,13 +319,9 @@ function processImg(src, modId, topic, params={}) {
     }
   }
 
-  // -- REGISTRATION / GEOMETRIC --
+  //  GEOMETRIC TRANSFORMATIONS 
   else if(modId==="registration"){
-    if(["Upload & Match","Feature Detection","Keypoint Matching","Homography","Aligned Overlay","Difference Map"].includes(topic)){
-      // These are handled by the special registration UI  -  return grayscale passthrough
-      for(let i=0;i<N;i++){out[i*4]=out[i*4+1]=out[i*4+2]=Math.round(gray[i]);out[i*4+3]=255;}
-      return new ImageData(out,W,H);
-    }
+
     const result=new Uint8ClampedArray(W*H*4);
     const cx=W/2,cy=H/2;
     const angle=(params.angle||15)*Math.PI/180,sc=params.scale||1.2,tx=params.tx||20,ty=params.ty||20;
@@ -355,7 +351,7 @@ function processImg(src, modId, topic, params={}) {
     return new ImageData(result,W,H);
   }
 
-  // -- COLOR --
+  //  COLOR 
   else if(modId==="color"){
     // Pre-compute Color Equalization LUT and HSV V values — must be OUTSIDE pixel loop
     const _ceqHist=new Array(256).fill(0);for(let j=0;j<N;j++) _ceqHist[Math.round(gray[j])]++;
@@ -393,7 +389,7 @@ function processImg(src, modId, topic, params={}) {
     }
   }
 
-  // -- MEDICAL --
+  //  MEDICAL 
   else if(modId==="medical"){
     const applyWin=(wc,ww)=>{for(let i=0;i<N;i++){const hu=(gray[i]-128)*10,v=Math.max(0,Math.min(255,Math.round((hu-wc+ww/2)/ww*255)));out[i*4]=out[i*4+1]=out[i*4+2]=v;out[i*4+3]=255;}};
     if(topic==="Grayscale View"){for(let i=0;i<N;i++){const v=Math.round(gray[i]);out[i*4]=out[i*4+1]=out[i*4+2]=v;out[i*4+3]=255;}}
@@ -421,7 +417,7 @@ function processImg(src, modId, topic, params={}) {
     }
   }
 
-  // -- WAVELETS --
+  //  WAVELETS 
   else if(modId==="wavelets"){
     const w2=Math.floor(W/2),h2=Math.floor(H/2);
     const LL=new Float32Array(w2*h2),LH=new Float32Array(w2*h2),HL=new Float32Array(w2*h2),HH=new Float32Array(w2*h2);
@@ -446,7 +442,7 @@ function processImg(src, modId, topic, params={}) {
     else if(topic==="Soft Threshold"){for(let i=0;i<N;i++){const v=Math.max(0,Math.min(255,Math.round(gray[i])));const s2=Math.sign(v-128)*Math.max(0,Math.abs(v-128)-T)+128;out[i*4]=out[i*4+1]=out[i*4+2]=Math.round(s2);out[i*4+3]=255;}}
     else if(topic==="Hard Threshold"){for(let i=0;i<N;i++){const v=gray[i];const s2=Math.abs(v-128)<T?128:v;out[i*4]=out[i*4+1]=out[i*4+2]=Math.round(s2);out[i*4+3]=255;}}
     else if(topic==="Multi-level Decomp"){
-      // Pre-compute LL min/max ONCE — must not be inside the pixel loop
+      
       const _llMin=arrMin(LL),_llMax=arrMax(LL),_llRng=_llMax-_llMin||1;
       for(let y=0;y<H;y++) for(let x=0;x<W;x++){
         const inLL=x<w2&&y<h2,inLH=x>=w2&&y<h2,inHL=x<w2&&y>=h2;
@@ -470,7 +466,7 @@ function processImg(src, modId, topic, params={}) {
     }
   }
 
-  // -- COMPRESSION --
+  //  COMPRESSION 
   else if(modId==="compression"){
     const bs=8;
     if(topic==="DCT 8x8 Blocks"){
@@ -503,7 +499,7 @@ function processImg(src, modId, topic, params={}) {
     }
   }
 
-  // -- SEGMENTATION --
+  //  SEGMENTATION 
   else if(modId==="segmentation"){
     const T=params.thresh||128;
     if(topic==="Global Threshold"){for(let i=0;i<N;i++){const v=gray[i]>=T?255:0;out[i*4]=out[i*4+1]=out[i*4+2]=v;out[i*4+3]=255;}}
@@ -549,7 +545,7 @@ function processImg(src, modId, topic, params={}) {
     }
   }
 
-  // -- REPRESENTATION --
+  //  REPRESENTATION 
   else if(modId==="representation"){
     if(topic==="Boundary Extract"){
       const bin=gray.map(v=>v>128?1:0);
@@ -581,7 +577,7 @@ function processImg(src, modId, topic, params={}) {
     }
   }
 
-  // -- FEATURES --
+  //  FEATURES 
   else if(modId==="features"){
     const Ix=convolve(gray,W,H,KX),Iy=convolve(gray,W,H,KY);
     if(topic==="Harris Corners"||topic==="Shi-Tomasi"){
@@ -619,7 +615,7 @@ function processImg(src, modId, topic, params={}) {
     }
   }
 
-  // -- MORPHOLOGY --
+  //  MORPHOLOGY 
   else if(modId==="morphology"){
     const se=[[1,1,1],[1,1,1],[1,1,1]]; // 3x3 square SE
     const bin=gray.map(v=>v>128?255:0);
@@ -698,7 +694,7 @@ function processImg(src, modId, topic, params={}) {
     for(let i=0;i<N;i++){const v=Math.round((result[i]-mn2)/rng2*255);out[i*4]=v;out[i*4+1]=v;out[i*4+2]=v;out[i*4+3]=255;}
   }
 
-  // -- GABOR --
+  //  GABOR 
   else if(modId==="gabor"){
     const gaborKernel=(theta,freq,sigma)=>{
       const k=15,half=7,kern=[];
@@ -742,9 +738,9 @@ function processImg(src, modId, topic, params={}) {
     }
   }
 
-  // -- OPTICAL FLOW --
+  //  OPTICAL FLOW 
   else if(modId==="opticalflow"){
-    // ── Spatial gradients (used as proxy for optical flow on single image) ──
+    //  Spatial gradients (used as proxy for optical flow on single image) 
     const Ix=convolve(gray,W,H,[[-1,0,1],[-2,0,2],[-1,0,1]]);
     const Iy=convolve(gray,W,H,[[-1,-2,-1],[0,0,0],[1,2,1]]);
     // It: simulate temporal gradient using difference between blurred versions at 2 scales
@@ -753,7 +749,7 @@ function processImg(src, modId, topic, params={}) {
     const It=new Float32Array(N);
     for(let i=0;i<N;i++) It[i]=(blurL[i]-blurS[i])*3; // amplified scale difference
 
-    // ── Lucas-Kanade windowed flow ──
+    //  Lucas-Kanade windowed flow 
     const winSz=4; // smaller window = faster + sharper
     const u=new Float32Array(N),v2=new Float32Array(N);
     for(let y=winSz;y<H-winSz;y++) for(let x=winSz;x<W-winSz;x++){
@@ -770,7 +766,7 @@ function processImg(src, modId, topic, params={}) {
       }
     }
 
-    // ── Horn-Schunck iterative smoothing ──
+    //  Horn-Schunck iterative smoothing
     const uHS=new Float32Array(u),vHS=new Float32Array(v2);
     if(topic==="Horn-Schunck Sim"){
       for(let iter=0;iter<5;iter++){
@@ -784,12 +780,12 @@ function processImg(src, modId, topic, params={}) {
       }
     }
 
-    // ── maxFlow for normalisation ──
+    //  maxFlow for normalisation 
     let _mfu=0,_mfv=0;
     for(let i=0;i<N;i++){const au=Math.abs(u[i]),av2=Math.abs(v2[i]);if(au>_mfu)_mfu=au;if(av2>_mfv)_mfv=av2;}
     const maxFlow=Math.max(_mfu,_mfv,0.1);
 
-    // ── helper: draw arrow on canvas buffer ──
+    //  helper: draw arrow on canvas buffer 
     const drawArrow=(ox,oy,dx,dy,r,g,b)=>{
       const len=Math.sqrt(dx*dx+dy*dy);if(len<0.3) return;
       const ex=Math.round(ox+dx),ey=Math.round(oy+dy);
@@ -887,7 +883,7 @@ function processImg(src, modId, topic, params={}) {
   }
 
 
-  // -- MATCHING --
+  //  MATCHING 
   else if(modId==="matching"){
     if(["Upload & Match","BF Match Viz"].includes(topic)){for(let i=0;i<N;i++){out[i*4]=out[i*4+1]=out[i*4+2]=Math.round(gray[i]);out[i*4+3]=255;}return new ImageData(out,W,H);}
     const Ix=convolve(gray,W,H,KX),Iy=convolve(gray,W,H,KY);
@@ -910,85 +906,10 @@ function processImg(src, modId, topic, params={}) {
   return new ImageData(out,W,H);
 }
 
-// ----------------------------------------------------------
-// REGISTRATION ENGINE  (Harris + patch match + homography)
-// ----------------------------------------------------------
-function detectHarrisCorners(gray, W, H, maxKP=80){
-  const KX=[[-1,0,1],[-2,0,2],[-1,0,1]],KY=[[-1,-2,-1],[0,0,0],[1,2,1]];
-  const Ix=convolve(gray,W,H,KX),Iy=convolve(gray,W,H,KY);
-  const R=new Float32Array(W*H);
-  for(let i=0;i<W*H;i++){const A=Ix[i]*Ix[i],B=Iy[i]*Iy[i],C=Ix[i]*Iy[i];R[i]=A*B-(C*C)-0.05*((A+B)*(A+B));}
-  const thresh=arrMax(R)*0.08;
-  const kps=[];
-  for(let y=5;y<H-5;y++) for(let x=5;x<W-5;x++){
-    const r=R[y*W+x];if(r<thresh) continue;
-    let isMax=true;
-    for(let dy=-3;dy<=3&&isMax;dy++) for(let dx=-3;dx<=3;dx++){if(dx===0&&dy===0) continue;if(R[(y+dy)*W+(x+dx)]>=r){isMax=false;break;}}
-    if(isMax) kps.push({x,y,r});
-  }
-  kps.sort((a,b)=>b.r-a.r);
-  return kps.slice(0,maxKP);
-}
 
-function patchDescriptor(gray, W, H, x, y, size=8){
-  const half=Math.floor(size/2),desc=[];
-  for(let dy=-half;dy<half;dy++) for(let dx=-half;dx<half;dx++){
-    const px=Math.min(Math.max(x+dx,0),W-1),py=Math.min(Math.max(y+dy,0),H-1);
-    desc.push(gray[py*W+px]);
-  }
-  return desc;
-}
 
-function ssd(a,b){let s=0;for(let i=0;i<a.length;i++) s+=((a[i]-b[i])*(a[i]-b[i]));return s;}
-
-function matchKeypoints(kps1, descs1, kps2, descs2){
-  const matches=[];
-  for(let i=0;i<kps1.length;i++){
-    let best=Infinity,second=Infinity,bestJ=-1;
-    for(let j=0;j<kps2.length;j++){
-      const d=ssd(descs1[i],descs2[j]);
-      if(d<best){second=best;best=d;bestJ=j;}
-      else if(d<second) second=d;
-    }
-    if(bestJ>=0&&best<second*0.75) matches.push({i,j:bestJ,dist:best});
-  }
-  return matches;
-}
-
-function computeHomography(src, dst){
-  // Direct Linear Transform (DLT)
-  const n=src.length;
-  const A=[];
-  for(let i=0;i<n;i++){
-    const [x,y]=src[i],[u,v]=dst[i];
-    A.push([-x,-y,-1,0,0,0,u*x,u*y,u]);
-    A.push([0,0,0,-x,-y,-1,v*x,v*y,v]);
-  }
-  // Simplified: use first 4 pairs for exact solution
-  if(n<4) return null;
-  // Return a basic scaling+translation homography approximated from matches
-  let sx=0,sy=0,tx=0,ty=0;
-  for(let i=0;i<Math.min(n,20);i++){sx+=dst[i][0]-src[i][0];sy+=dst[i][1]-src[i][1];}
-  tx=sx/Math.min(n,20);ty=sy/Math.min(n,20);
-  return [[1,0,tx],[0,1,ty],[0,0,1]];
-}
-
-function warpImage(srcData, H_mat, dstW, dstH){
-  const result=new Uint8ClampedArray(dstW*dstH*4);
-  const {data,width:sW,height:sH}=srcData;
-  for(let y=0;y<dstH;y++) for(let x=0;x<dstW;x++){
-    const sx=Math.round(x-H_mat[0][2]),sy=Math.round(y-H_mat[1][2]);
-    if(sx>=0&&sx<sW&&sy>=0&&sy<sH){
-      const si=(sy*sW+sx)*4,di=(y*dstW+x)*4;
-      result[di]=data[si];result[di+1]=data[si+1];result[di+2]=data[si+2];result[di+3]=255;
-    }
-  }
-  return result;
-}
-
-// ----------------------------------------------------------
 // HISTOGRAM WIDGET
-// ----------------------------------------------------------
+
 function Histogram({imageData,label}){
   const ref=useRef(null);
   useEffect(()=>{
@@ -1008,9 +929,9 @@ function Histogram({imageData,label}){
   return <canvas ref={ref} width={260} height={70} style={{width:"100%",borderRadius:3,border:"1px solid rgba(255,255,255,0.06)"}}/>;
 }
 
-// ----------------------------------------------------------
+
 // REGISTRATION PANEL
-// ----------------------------------------------------------
+
 class ErrorBoundary extends React.Component{
   constructor(props){super(props);this.state={hasError:false,error:null};}
   static getDerivedStateFromError(error){return{hasError:true,error};}
@@ -1037,17 +958,16 @@ class ErrorBoundary extends React.Component{
 }
 
 function RegistrationPanel({color, activeTopic}){
-  // Registration removed - geometric transforms use standard processImg pipeline
-  // Planned as future work: WebAssembly-based SIFT via OpenCV.js
+ 
   return <div style={{padding:20,color:"rgba(255,255,255,0.3)",fontFamily:"monospace",fontSize:11}}>
     Geometric transforms use the standard canvas below.
   </div>;
 }
 
 // MAIN APP
-// ----------------------------------------------------------
-const REG_SPECIAL=[]; // Registration removed - geometric transforms use standard processImg
-const MATCH_SPECIAL=[]; // removed Upload & Match and BF Match Viz - use processImg directly
+
+const REG_SPECIAL=[]; 
+const MATCH_SPECIAL=[]; 
 const PARAM_MAP={
   "Gamma":[{key:"gamma",label:"gamma",min:0.1,max:3,step:0.05}],
   "Bit-plane Slicing":[{key:"plane",label:"Plane",min:0,max:7,step:1}],
@@ -1093,10 +1013,7 @@ export default function App(){
   const [mobTab,setMobTab]=useState('canvas'); // 'modules'|'ops'|'canvas'|'theory'
   const origRef=useRef(null),procRef=useRef(null),fileRef=useRef(null),webcamRef=useRef(null),diffRef=useRef(null),streamRef=useRef(null),camFileRef=useRef(null),liveCanvasRef=useRef(null),animFrameRef=useRef(null);
 
-  const isSpecialReg=activeMod.id==="registration"&&REG_SPECIAL.includes(activeTopic);
-  const isSpecialMatch=activeMod.id==="matching"&&MATCH_SPECIAL.includes(activeTopic);
-  const showRegPanel=isSpecialReg||isSpecialMatch;
-
+  const showRegPanel=false; 
   useEffect(()=>{
     const c=document.createElement("canvas");c.width=320;c.height=320;
     const ctx=c.getContext("2d");
@@ -1367,7 +1284,7 @@ export default function App(){
         .tr:hover{color:white;}
         .ic{background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.07);border-radius:3px;padding:10px 12px;}
 
-        /* ── MOBILE RESPONSIVE ─────────────────────────────────────────── */
+        /*  MOBILE RESPONSIVE ─ */
         .mob-nav{display:none;}
         .mob-overlay{display:none;}
 
@@ -1683,7 +1600,7 @@ export default function App(){
           </div>
         </div>
       </div>
-      {/* ── MOBILE BOTTOM NAV ─────────────────────────────── */}
+      {/*  MOBILE BOTTOM NAV ─ */}
       <nav className="mob-nav" style={{"--mc":activeMod.color}}>
         {[
           {id:'modules', ico:'🧠', label:'MODULES'},
@@ -1699,7 +1616,7 @@ export default function App(){
         ))}
       </nav>
 
-      {/* ── MOBILE MODULES OVERLAY ─────────────────────────── */}
+      {/*  MOBILE MODULES OVERLAY ─ */}
       <div className={`mob-overlay${mobTab==='modules'?' open':''}`}>
         <div style={{fontFamily:"'Orbitron',monospace",fontSize:10,color:"#4cc9f0",letterSpacing:2,marginBottom:12}}>SELECT MODULE</div>
         {MODULES.map(mod=>(
@@ -1716,7 +1633,7 @@ export default function App(){
         ))}
       </div>
 
-      {/* ── MOBILE OPS OVERLAY ─────────────────────────────── */}
+      {/*  MOBILE OPS OVERLAY ─ */}
       <div className={`mob-overlay${mobTab==='ops'?' open':''}`}>
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
           <span style={{fontSize:22}}>{activeMod.icon}</span>
@@ -1747,7 +1664,7 @@ export default function App(){
         </>}
       </div>
 
-      {/* ── MOBILE THEORY OVERLAY ──────────────────────────── */}
+      {/*  MOBILE THEORY OVERLAY  */}
       <div className={`mob-overlay${mobTab==='theory'?' open':''}`}>
         <div className="lbl" style={{marginTop:0}}>Theory — {activeMod.label}</div>
         {Object.entries(activeMod.theory||{}).map(([k,v])=>(
