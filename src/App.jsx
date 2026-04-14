@@ -1,9 +1,9 @@
 // @ts-nocheck
 import React, { useState, useRef, useEffect, useCallback } from "react";
 
-
+// ----------------------------------------------------------
 // MODULES DEFINITION
-
+// ----------------------------------------------------------
 const MODULES = [
   { id:"intensity",  icon:"⚡", label:"Intensity Transformations",       color:"#f72585",
     topics:["Negative","Log Transform","Gamma","Contrast Stretch","Bit-plane Slicing","Thresholding","Sigmoid","Histogram Stretch"],
@@ -94,11 +94,26 @@ const MODULES = [
       "KD-Tree Sim":"K-dimensional tree: recursively splits feature space by alternating dimensions. O(log N) approximate nearest-neighbor search. Best for descriptors with d<20 dimensions.",
       "LSH Sim":"Locality-Sensitive Hashing: maps similar high-dimensional descriptors to same hash bucket with high probability. Enables O(1) approximate matching for binary descriptors."
     }},
+  {id:"videocomp",  icon:"🎬", label:"Video Compression",    color:"#ef476f",
+    topics:["Frame Difference","Block Matching","Motion Vectors","MAE Heatmap","Predicted Frame","Residual Error","Compression Ratio","PSNR Metric","DCT Video Block","Motion Magnitude"],
+    theory:{
+      "Frame Difference":"Absolute difference between two consecutive frames: D(x,y)=|F2(x,y)-F1(x,y)|. Bright pixels indicate motion. Mean Absolute Error (MAE)=mean(D) measures overall motion intensity between frames.",
+      "Block Matching":"Divides current frame into N×N blocks. For each block, searches reference frame within ±S pixels to find best match using MAE. Full search: O(W·H·S²/N²) comparisons. Foundation of MPEG/H.264 compression.",
+      "Motion Vectors":"Displacement vector (dx,dy) for each block showing where it moved from reference to current frame. Magnitude=√(dx²+dy²) gives motion speed. Direction gives motion direction. Stored instead of full frame in video compression.",
+      "MAE Heatmap":"Mean Absolute Error map showing matching quality per block. Low MAE (dark)=block found good match=easy to predict. High MAE (bright)=complex motion or occlusion=hard to predict. Used to allocate more bits to difficult regions.",
+      "Predicted Frame":"Frame reconstructed using motion vectors only. Each block in current frame is copied from its best-matching position in the reference frame. Prediction error = actual - predicted = residual signal.",
+      "Residual Error":"Difference between actual frame and motion-compensated prediction: R=F_current - F_predicted. Small residual=good prediction=high compression. In MPEG/H.264, only this residual is DCT-coded and transmitted.",
+      "Compression Ratio":"Ratio of original data size to compressed size. Without motion compensation: store full frame difference. With motion compensation: store only motion vectors + residual. Typical ratio: 10:1 to 100:1 for video.",
+      "PSNR Metric":"Peak Signal-to-Noise Ratio: PSNR=10·log10(255²/MSE) in dB. Measures quality of predicted vs actual frame. >40dB=excellent, >30dB=good, <20dB=poor. Higher PSNR means less information lost in prediction.",
+      "DCT Video Block":"8×8 Discrete Cosine Transform applied to residual block. Concentrates energy into few low-frequency coefficients. Quantization zeros small coefficients for compression. Same principle as JPEG but applied to prediction residual.",
+      "Motion Magnitude":"Magnitude map: M(bx,by)=√(dx²+dy²) per block. Shows which regions are moving fast (bright) vs stationary (dark). High magnitude regions require more bits. Used for variable bitrate allocation in video encoders."
+    }},
 ];
 
 
+// ----------------------------------------------------------
 // CORE PROCESSING ENGINE
-
+// ----------------------------------------------------------
 function convolve(gray, W, H, kernel) {
   const k = kernel.length, kh = Math.floor(k/2);
   const res = new Float32Array(W*H);
@@ -137,7 +152,7 @@ function processImg(src, modId, topic, params={}) {
   const GAUSS=[[1,2,1],[2,4,2],[1,2,1]].map(r=>r.map(v=>v/16));
   const MEAN=[[1,1,1],[1,1,1],[1,1,1]].map(r=>r.map(v=>v/9));
 
-  //  INTENSITY 
+  // -- INTENSITY --
   if (modId==="intensity") {
     const g=params.gamma||1, T=params.thresh||128, plane=params.plane||7, k=params.k||0.1;
     // Pre-compute for Histogram Stretch — must be OUTSIDE the pixel loop
@@ -156,7 +171,7 @@ function processImg(src, modId, topic, params={}) {
     }
   }
 
-  //  HISTOGRAM 
+  // -- HISTOGRAM --
   else if(modId==="histogram"){
     const hist=new Array(256).fill(0);
     for(let i=0;i<N;i++) hist[Math.round(gray[i])]++;
@@ -214,7 +229,7 @@ function processImg(src, modId, topic, params={}) {
     }
   }
 
-  //  SPATIAL 
+  // -- SPATIAL --
   else if(modId==="spatial"){
     const median3=()=>{
       for(let y=0;y<H;y++) for(let x=0;x<W;x++){
@@ -244,7 +259,7 @@ function processImg(src, modId, topic, params={}) {
     }
   }
 
-  //  FREQUENCY 
+  // -- FREQUENCY --
   else if(modId==="frequency"){
     const D0=params.d0||40,n=params.n||2;
     const cx=W/2,cy=H/2;
@@ -278,7 +293,7 @@ function processImg(src, modId, topic, params={}) {
     }
   }
 
-  //  RESTORATION 
+  // -- RESTORATION --
   else if(modId==="restoration"){
     const sigma=params.sigma||20;
     if(topic==="Add Gaussian Noise"){
@@ -319,7 +334,7 @@ function processImg(src, modId, topic, params={}) {
     }
   }
 
-  //  GEOMETRIC TRANSFORMATIONS 
+  // -- REGISTRATION / GEOMETRIC --
   else if(modId==="registration"){
 
     const result=new Uint8ClampedArray(W*H*4);
@@ -351,7 +366,7 @@ function processImg(src, modId, topic, params={}) {
     return new ImageData(result,W,H);
   }
 
-  //  COLOR 
+  // -- COLOR --
   else if(modId==="color"){
     // Pre-compute Color Equalization LUT and HSV V values — must be OUTSIDE pixel loop
     const _ceqHist=new Array(256).fill(0);for(let j=0;j<N;j++) _ceqHist[Math.round(gray[j])]++;
@@ -389,7 +404,7 @@ function processImg(src, modId, topic, params={}) {
     }
   }
 
-  //  MEDICAL 
+  // -- MEDICAL --
   else if(modId==="medical"){
     const applyWin=(wc,ww)=>{for(let i=0;i<N;i++){const hu=(gray[i]-128)*10,v=Math.max(0,Math.min(255,Math.round((hu-wc+ww/2)/ww*255)));out[i*4]=out[i*4+1]=out[i*4+2]=v;out[i*4+3]=255;}};
     if(topic==="Grayscale View"){for(let i=0;i<N;i++){const v=Math.round(gray[i]);out[i*4]=out[i*4+1]=out[i*4+2]=v;out[i*4+3]=255;}}
@@ -417,7 +432,7 @@ function processImg(src, modId, topic, params={}) {
     }
   }
 
-  //  WAVELETS 
+  // -- WAVELETS --
   else if(modId==="wavelets"){
     const w2=Math.floor(W/2),h2=Math.floor(H/2);
     const LL=new Float32Array(w2*h2),LH=new Float32Array(w2*h2),HL=new Float32Array(w2*h2),HH=new Float32Array(w2*h2);
@@ -442,7 +457,7 @@ function processImg(src, modId, topic, params={}) {
     else if(topic==="Soft Threshold"){for(let i=0;i<N;i++){const v=Math.max(0,Math.min(255,Math.round(gray[i])));const s2=Math.sign(v-128)*Math.max(0,Math.abs(v-128)-T)+128;out[i*4]=out[i*4+1]=out[i*4+2]=Math.round(s2);out[i*4+3]=255;}}
     else if(topic==="Hard Threshold"){for(let i=0;i<N;i++){const v=gray[i];const s2=Math.abs(v-128)<T?128:v;out[i*4]=out[i*4+1]=out[i*4+2]=Math.round(s2);out[i*4+3]=255;}}
     else if(topic==="Multi-level Decomp"){
-      
+      // Pre-compute LL min/max ONCE — must not be inside the pixel loop
       const _llMin=arrMin(LL),_llMax=arrMax(LL),_llRng=_llMax-_llMin||1;
       for(let y=0;y<H;y++) for(let x=0;x<W;x++){
         const inLL=x<w2&&y<h2,inLH=x>=w2&&y<h2,inHL=x<w2&&y>=h2;
@@ -466,7 +481,7 @@ function processImg(src, modId, topic, params={}) {
     }
   }
 
-  //  COMPRESSION 
+  // -- COMPRESSION --
   else if(modId==="compression"){
     const bs=8;
     if(topic==="DCT 8x8 Blocks"){
@@ -499,7 +514,7 @@ function processImg(src, modId, topic, params={}) {
     }
   }
 
-  //  SEGMENTATION 
+  // -- SEGMENTATION --
   else if(modId==="segmentation"){
     const T=params.thresh||128;
     if(topic==="Global Threshold"){for(let i=0;i<N;i++){const v=gray[i]>=T?255:0;out[i*4]=out[i*4+1]=out[i*4+2]=v;out[i*4+3]=255;}}
@@ -545,7 +560,7 @@ function processImg(src, modId, topic, params={}) {
     }
   }
 
-  //  REPRESENTATION 
+  // -- REPRESENTATION --
   else if(modId==="representation"){
     if(topic==="Boundary Extract"){
       const bin=gray.map(v=>v>128?1:0);
@@ -577,7 +592,7 @@ function processImg(src, modId, topic, params={}) {
     }
   }
 
-  //  FEATURES 
+  // -- FEATURES --
   else if(modId==="features"){
     const Ix=convolve(gray,W,H,KX),Iy=convolve(gray,W,H,KY);
     if(topic==="Harris Corners"||topic==="Shi-Tomasi"){
@@ -615,7 +630,7 @@ function processImg(src, modId, topic, params={}) {
     }
   }
 
-  //  MORPHOLOGY 
+  // -- MORPHOLOGY --
   else if(modId==="morphology"){
     const se=[[1,1,1],[1,1,1],[1,1,1]]; // 3x3 square SE
     const bin=gray.map(v=>v>128?255:0);
@@ -694,7 +709,7 @@ function processImg(src, modId, topic, params={}) {
     for(let i=0;i<N;i++){const v=Math.round((result[i]-mn2)/rng2*255);out[i*4]=v;out[i*4+1]=v;out[i*4+2]=v;out[i*4+3]=255;}
   }
 
-  //  GABOR 
+  // -- GABOR --
   else if(modId==="gabor"){
     const gaborKernel=(theta,freq,sigma)=>{
       const k=15,half=7,kern=[];
@@ -738,9 +753,9 @@ function processImg(src, modId, topic, params={}) {
     }
   }
 
-  //  OPTICAL FLOW 
+  // -- OPTICAL FLOW --
   else if(modId==="opticalflow"){
-    //  Spatial gradients (used as proxy for optical flow on single image) 
+    // ── Spatial gradients (used as proxy for optical flow on single image) ──
     const Ix=convolve(gray,W,H,[[-1,0,1],[-2,0,2],[-1,0,1]]);
     const Iy=convolve(gray,W,H,[[-1,-2,-1],[0,0,0],[1,2,1]]);
     // It: simulate temporal gradient using difference between blurred versions at 2 scales
@@ -749,7 +764,7 @@ function processImg(src, modId, topic, params={}) {
     const It=new Float32Array(N);
     for(let i=0;i<N;i++) It[i]=(blurL[i]-blurS[i])*3; // amplified scale difference
 
-    //  Lucas-Kanade windowed flow 
+    // ── Lucas-Kanade windowed flow ──
     const winSz=4; // smaller window = faster + sharper
     const u=new Float32Array(N),v2=new Float32Array(N);
     for(let y=winSz;y<H-winSz;y++) for(let x=winSz;x<W-winSz;x++){
@@ -766,7 +781,7 @@ function processImg(src, modId, topic, params={}) {
       }
     }
 
-    //  Horn-Schunck iterative smoothing
+    // ── Horn-Schunck iterative smoothing ──
     const uHS=new Float32Array(u),vHS=new Float32Array(v2);
     if(topic==="Horn-Schunck Sim"){
       for(let iter=0;iter<5;iter++){
@@ -780,12 +795,12 @@ function processImg(src, modId, topic, params={}) {
       }
     }
 
-    //  maxFlow for normalisation 
+    // ── maxFlow for normalisation ──
     let _mfu=0,_mfv=0;
     for(let i=0;i<N;i++){const au=Math.abs(u[i]),av2=Math.abs(v2[i]);if(au>_mfu)_mfu=au;if(av2>_mfv)_mfv=av2;}
     const maxFlow=Math.max(_mfu,_mfv,0.1);
 
-    //  helper: draw arrow on canvas buffer 
+    // ── helper: draw arrow on canvas buffer ──
     const drawArrow=(ox,oy,dx,dy,r,g,b)=>{
       const len=Math.sqrt(dx*dx+dy*dy);if(len<0.3) return;
       const ex=Math.round(ox+dx),ey=Math.round(oy+dy);
@@ -883,7 +898,7 @@ function processImg(src, modId, topic, params={}) {
   }
 
 
-  //  MATCHING 
+  // -- MATCHING --
   else if(modId==="matching"){
     if(["Upload & Match","BF Match Viz"].includes(topic)){for(let i=0;i<N;i++){out[i*4]=out[i*4+1]=out[i*4+2]=Math.round(gray[i]);out[i*4+3]=255;}return new ImageData(out,W,H);}
     const Ix=convolve(gray,W,H,KX),Iy=convolve(gray,W,H,KY);
@@ -903,13 +918,253 @@ function processImg(src, modId, topic, params={}) {
   }
 
   else{for(let i=0;i<N;i++){out[i*4]=out[i*4+1]=out[i*4+2]=Math.round(gray[i]);out[i*4+3]=255;}}
+  // ── VIDEO COMPRESSION ──────────────────────────────────────────────────────
+  else if(modId==="videocomp"){
+    const N=W*H;
+    // We use the current image as "current frame" and a shifted version as "reference frame"
+    // This simulates two consecutive frames for demonstration purposes
+
+    // Create reference frame (simulate by slightly shifting/blurring current)
+    const ref=new Float32Array(N);
+    const shift=Math.floor((params.blockSize||8));
+    for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+      const rx=Math.min(Math.max(x-shift,0),W-1);
+      const ry=Math.min(Math.max(y-shift,0),H-1);
+      ref[y*W+x]=gray[ry*W+rx];
+    }
+
+    const BLOCK=params.blockSize||16;
+    const SEARCH=params.searchRange||8;
+    const nbx=Math.floor(W/BLOCK);
+    const nby=Math.floor(H/BLOCK);
+
+    // Block matching
+    const mvx=new Float32Array(nbx*nby);
+    const mvy=new Float32Array(nbx*nby);
+    const maeMap=new Float32Array(nbx*nby);
+
+    for(let by=0;by<nby;by++){
+      for(let bx=0;bx<nbx;bx++){
+        const y0=by*BLOCK, x0=bx*BLOCK;
+        let bestMAE=Infinity, bdx=0, bdy=0;
+        for(let dy=-SEARCH;dy<=SEARCH;dy++){
+          for(let dx=-SEARCH;dx<=SEARCH;dx++){
+            const ry=y0+dy, rx=x0+dx;
+            if(ry<0||ry+BLOCK>H||rx<0||rx+BLOCK>W) continue;
+            let mae=0;
+            for(let py=0;py<BLOCK;py++) for(let px=0;px<BLOCK;px++){
+              mae+=Math.abs(gray[(y0+py)*W+(x0+px)]-ref[(ry+py)*W+(rx+px)]);
+            }
+            mae/=(BLOCK*BLOCK);
+            if(mae<bestMAE){bestMAE=mae;bdx=dx;bdy=dy;}
+          }
+        }
+        mvx[by*nbx+bx]=bdx;
+        mvy[by*nbx+bx]=bdy;
+        maeMap[by*nbx+bx]=bestMAE;
+      }
+    }
+
+    // ── FRAME DIFFERENCE ──
+    if(topic==="Frame Difference"){
+      let maxD=0;
+      for(let i=0;i<N;i++){const d=Math.abs(gray[i]-ref[i]);if(d>maxD)maxD=d;}
+      if(maxD===0)maxD=1;
+      for(let i=0;i<N;i++){
+        const d=Math.round(Math.abs(gray[i]-ref[i])/maxD*255);
+        out[i*4]=d;out[i*4+1]=Math.round(d*0.3);out[i*4+2]=0;out[i*4+3]=255;
+      }
+    }
+    // ── BLOCK MATCHING ──
+    else if(topic==="Block Matching"){
+      // Show blocks with colour coding based on MAE
+      let maxMAE=0;
+      for(let i=0;i<maeMap.length;i++) if(maeMap[i]>maxMAE)maxMAE=maeMap[i];
+      if(maxMAE===0)maxMAE=1;
+      for(let by=0;by<nby;by++) for(let bx=0;bx<nbx;bx++){
+        const mae=maeMap[by*nbx+bx];
+        const r=Math.round(mae/maxMAE*255);
+        const g=Math.round((1-mae/maxMAE)*200);
+        for(let py=0;py<BLOCK;py++) for(let px=0;px<BLOCK;px++){
+          const i=((by*BLOCK+py)*W+(bx*BLOCK+px))*4;
+          out[i]=r;out[i+1]=g;out[i+2]=50;out[i+3]=255;
+          // Draw block border
+          if(py===0||py===BLOCK-1||px===0||px===BLOCK-1){
+            out[i]=255;out[i+1]=255;out[i+2]=255;
+          }
+        }
+      }
+    }
+    // ── MOTION VECTORS ──
+    else if(topic==="Motion Vectors"){
+      // Draw grayscale base + arrows
+      for(let i=0;i<N;i++){const g2=Math.round(gray[i]);out[i*4]=g2;out[i*4+1]=g2;out[i*4+2]=g2;out[i*4+3]=255;}
+      for(let by=0;by<nby;by++) for(let bx=0;bx<nbx;bx++){
+        const dx=mvx[by*nbx+bx], dy=mvy[by*nbx+bx];
+        const cx=Math.round(bx*BLOCK+BLOCK/2), cy=Math.round(by*BLOCK+BLOCK/2);
+        const ex=Math.min(Math.max(Math.round(cx+dx),0),W-1);
+        const ey=Math.min(Math.max(Math.round(cy+dy),0),H-1);
+        // Draw line from center to end
+        const steps=Math.max(Math.abs(dx),Math.abs(dy),1);
+        for(let s=0;s<=steps;s++){
+          const px=Math.round(cx+dx*s/steps);
+          const py2=Math.round(cy+dy*s/steps);
+          if(px>=0&&px<W&&py2>=0&&py2<H){
+            const i=(py2*W+px)*4;
+            out[i]=0;out[i+1]=255;out[i+2]=100;out[i+3]=255;
+          }
+        }
+        // Draw arrowhead
+        const i2=(ey*W+ex)*4;
+        out[i2]=255;out[i2+1]=50;out[i2+2]=0;out[i2+3]=255;
+      }
+    }
+    // ── MAE HEATMAP ──
+    else if(topic==="MAE Heatmap"){
+      let maxMAE=0;
+      for(let i=0;i<maeMap.length;i++) if(maeMap[i]>maxMAE)maxMAE=maeMap[i];
+      if(maxMAE===0)maxMAE=1;
+      for(let by=0;by<nby;by++) for(let bx=0;bx<nbx;bx++){
+        const t=maeMap[by*nbx+bx]/maxMAE;
+        const r=Math.round(t<0.5?0:((t-0.5)*2*255));
+        const g2=Math.round(t<0.5?(t*2*200):(1-(t-0.5)*2)*200);
+        const b2=Math.round(t<0.5?(1-t*2)*255:0);
+        for(let py=0;py<BLOCK;py++) for(let px=0;px<BLOCK;px++){
+          const i=((by*BLOCK+py)*W+(bx*BLOCK+px))*4;
+          out[i]=r;out[i+1]=g2;out[i+2]=b2;out[i+3]=255;
+        }
+      }
+    }
+    // ── PREDICTED FRAME ──
+    else if(topic==="Predicted Frame"){
+      for(let by=0;by<nby;by++) for(let bx=0;bx<nbx;bx++){
+        const dx=mvx[by*nbx+bx], dy=mvy[by*nbx+bx];
+        for(let py=0;py<BLOCK;py++) for(let px=0;px<BLOCK;px++){
+          const ry=Math.min(Math.max(by*BLOCK+py+Math.round(dy),0),H-1);
+          const rx=Math.min(Math.max(bx*BLOCK+px+Math.round(dx),0),W-1);
+          const val=Math.round(ref[ry*W+rx]);
+          const i=((by*BLOCK+py)*W+(bx*BLOCK+px))*4;
+          out[i]=val;out[i+1]=val;out[i+2]=val;out[i+3]=255;
+        }
+      }
+    }
+    // ── RESIDUAL ERROR ──
+    else if(topic==="Residual Error"){
+      // Build predicted first
+      const pred=new Float32Array(N);
+      for(let by=0;by<nby;by++) for(let bx=0;bx<nbx;bx++){
+        const dx=mvx[by*nbx+bx], dy=mvy[by*nbx+bx];
+        for(let py=0;py<BLOCK;py++) for(let px=0;px<BLOCK;px++){
+          const ry=Math.min(Math.max(by*BLOCK+py+Math.round(dy),0),H-1);
+          const rx=Math.min(Math.max(bx*BLOCK+px+Math.round(dx),0),W-1);
+          pred[(by*BLOCK+py)*W+(bx*BLOCK+px)]=ref[ry*W+rx];
+        }
+      }
+      let maxR=0;
+      for(let i=0;i<N;i++){const r=Math.abs(gray[i]-pred[i]);if(r>maxR)maxR=r;}
+      if(maxR===0)maxR=1;
+      for(let i=0;i<N;i++){
+        const r=Math.round(Math.abs(gray[i]-pred[i])/maxR*255);
+        out[i*4]=r;out[i*4+1]=Math.round(r*0.5);out[i*4+2]=0;out[i*4+3]=255;
+      }
+    }
+    // ── COMPRESSION RATIO ──
+    else if(topic==="Compression Ratio"){
+      // Visualise as bar chart overlay on grayscale image
+      for(let i=0;i<N;i++){const g2=Math.round(gray[i]*0.3);out[i*4]=g2;out[i*4+1]=g2;out[i*4+2]=g2;out[i*4+3]=255;}
+      let totalMAE=0;
+      for(let i=0;i<maeMap.length;i++) totalMAE+=maeMap[i];
+      const avgMAE=totalMAE/maeMap.length;
+      const ratio=Math.max(1,255/(avgMAE+1));
+      // Draw ratio bar
+      const barH=Math.min(Math.round(ratio/20*H),H);
+      for(let y=H-barH;y<H;y++) for(let x=10;x<60;x++){
+        const i=(y*W+x)*4;
+        out[i]=50;out[i+1]=200;out[i+2]=100;out[i+3]=255;
+      }
+    }
+    // ── PSNR METRIC ──
+    else if(topic==="PSNR Metric"){
+      let mse=0;
+      for(let i=0;i<N;i++) mse+=(gray[i]-ref[i])*(gray[i]-ref[i]);
+      mse/=N;
+      const psnr=mse>0?10*Math.log10(255*255/mse):99;
+      // Visualise as heatmap + show PSNR value encoded in brightness
+      const brightness=Math.min(255,Math.round(psnr/50*255));
+      for(let i=0;i<N;i++){
+        const diff=Math.round(Math.abs(gray[i]-ref[i]));
+        out[i*4]=Math.min(255,diff*2);
+        out[i*4+1]=Math.round(gray[i]*0.5);
+        out[i*4+2]=brightness;
+        out[i*4+3]=255;
+      }
+    }
+    // ── DCT VIDEO BLOCK ──
+    else if(topic==="DCT Video Block"){
+      // Apply 8x8 DCT to residual blocks for visualisation
+      const pred=new Float32Array(N);
+      for(let by=0;by<nby;by++) for(let bx=0;bx<nbx;bx++){
+        const dx=mvx[by*nbx+bx], dy=mvy[by*nbx+bx];
+        for(let py=0;py<BLOCK;py++) for(let px=0;px<BLOCK;px++){
+          const ry=Math.min(Math.max(by*BLOCK+py+Math.round(dy),0),H-1);
+          const rx=Math.min(Math.max(bx*BLOCK+px+Math.round(dx),0),W-1);
+          pred[(by*BLOCK+py)*W+(bx*BLOCK+px)]=ref[ry*W+rx];
+        }
+      }
+      // DCT on 8x8 residual blocks
+      const B=8;
+      let maxC=0;
+      const dctOut=new Float32Array(N);
+      for(let by=0;by<Math.floor(H/B);by++) for(let bx=0;bx<Math.floor(W/B);bx++){
+        for(let u=0;u<B;u++) for(let v=0;v<B;v++){
+          let sum=0;
+          for(let y=0;y<B;y++) for(let x=0;x<B;x++){
+            const res=gray[(by*B+y)*W+(bx*B+x)]-pred[(by*B+y)*W+(bx*B+x)];
+            sum+=res*Math.cos((2*x+1)*u*Math.PI/16)*Math.cos((2*y+1)*v*Math.PI/16);
+          }
+          const cu=u===0?1/Math.sqrt(2):1;
+          const cv=v===0?1/Math.sqrt(2):1;
+          const c=Math.abs(0.25*cu*cv*sum);
+          dctOut[(by*B+u)*W+(bx*B+v)]=c;
+          if(c>maxC)maxC=c;
+        }
+      }
+      if(maxC===0)maxC=1;
+      for(let i=0;i<N;i++){
+        const v=Math.round(Math.log1p(dctOut[i])/Math.log1p(maxC)*255);
+        out[i*4]=v;out[i*4+1]=Math.round(v*0.5);out[i*4+2]=Math.round(v*0.8);out[i*4+3]=255;
+      }
+    }
+    // ── MOTION MAGNITUDE ──
+    else if(topic==="Motion Magnitude"){
+      let maxMag=0;
+      for(let i=0;i<nbx*nby;i++){
+        const m=Math.sqrt(mvx[i]*mvx[i]+mvy[i]*mvy[i]);
+        if(m>maxMag)maxMag=m;
+      }
+      if(maxMag===0)maxMag=1;
+      for(let by=0;by<nby;by++) for(let bx=0;bx<nbx;bx++){
+        const mag=Math.sqrt(mvx[by*nbx+bx]**2+mvy[by*nbx+bx]**2)/maxMag;
+        const r=Math.round(mag*255);
+        const g2=Math.round((1-mag)*200);
+        for(let py=0;py<BLOCK;py++) for(let px=0;px<BLOCK;px++){
+          const i=((by*BLOCK+py)*W+(bx*BLOCK+px))*4;
+          out[i]=r;out[i+1]=g2;out[i+2]=50;out[i+3]=255;
+        }
+      }
+    }
+    else{
+      for(let i=0;i<N;i++){const v=Math.round(gray[i]);out[i*4]=v;out[i*4+1]=v;out[i*4+2]=v;out[i*4+3]=255;}
+    }
+  }
+
   return new ImageData(out,W,H);
 }
 
-
-
+// ----------------------------------------------------------
+// ----------------------------------------------------------
 // HISTOGRAM WIDGET
-
+// ----------------------------------------------------------
 function Histogram({imageData,label}){
   const ref=useRef(null);
   useEffect(()=>{
@@ -929,9 +1184,9 @@ function Histogram({imageData,label}){
   return <canvas ref={ref} width={260} height={70} style={{width:"100%",borderRadius:3,border:"1px solid rgba(255,255,255,0.06)"}}/>;
 }
 
-
+// ----------------------------------------------------------
 // REGISTRATION PANEL
-
+// ----------------------------------------------------------
 class ErrorBoundary extends React.Component{
   constructor(props){super(props);this.state={hasError:false,error:null};}
   static getDerivedStateFromError(error){return{hasError:true,error};}
@@ -958,16 +1213,17 @@ class ErrorBoundary extends React.Component{
 }
 
 function RegistrationPanel({color, activeTopic}){
- 
+  // Registration removed - geometric transforms use standard processImg pipeline
+  // Planned as future work: WebAssembly-based SIFT via OpenCV.js
   return <div style={{padding:20,color:"rgba(255,255,255,0.3)",fontFamily:"monospace",fontSize:11}}>
     Geometric transforms use the standard canvas below.
   </div>;
 }
 
 // MAIN APP
-
-const REG_SPECIAL=[]; 
-const MATCH_SPECIAL=[]; 
+// ----------------------------------------------------------
+const REG_SPECIAL=[]; // Registration removed - geometric transforms use standard processImg
+const MATCH_SPECIAL=[]; // removed Upload & Match and BF Match Viz - use processImg directly
 const PARAM_MAP={
   "Gamma":[{key:"gamma",label:"gamma",min:0.1,max:3,step:0.05}],
   "Bit-plane Slicing":[{key:"plane",label:"Plane",min:0,max:7,step:1}],
@@ -1013,7 +1269,8 @@ export default function App(){
   const [mobTab,setMobTab]=useState('canvas'); // 'modules'|'ops'|'canvas'|'theory'
   const origRef=useRef(null),procRef=useRef(null),fileRef=useRef(null),webcamRef=useRef(null),diffRef=useRef(null),streamRef=useRef(null),camFileRef=useRef(null),liveCanvasRef=useRef(null),animFrameRef=useRef(null);
 
-  const showRegPanel=false; 
+  const showRegPanel=false; // registration panel removed
+
   useEffect(()=>{
     const c=document.createElement("canvas");c.width=320;c.height=320;
     const ctx=c.getContext("2d");
@@ -1284,7 +1541,7 @@ export default function App(){
         .tr:hover{color:white;}
         .ic{background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.07);border-radius:3px;padding:10px 12px;}
 
-        /*  MOBILE RESPONSIVE ─ */
+        /* ── MOBILE RESPONSIVE ─────────────────────────────────────────── */
         .mob-nav{display:none;}
         .mob-overlay{display:none;}
 
@@ -1600,7 +1857,7 @@ export default function App(){
           </div>
         </div>
       </div>
-      {/*  MOBILE BOTTOM NAV ─ */}
+      {/* ── MOBILE BOTTOM NAV ─────────────────────────────── */}
       <nav className="mob-nav" style={{"--mc":activeMod.color}}>
         {[
           {id:'modules', ico:'🧠', label:'MODULES'},
@@ -1616,7 +1873,7 @@ export default function App(){
         ))}
       </nav>
 
-      {/*  MOBILE MODULES OVERLAY ─ */}
+      {/* ── MOBILE MODULES OVERLAY ─────────────────────────── */}
       <div className={`mob-overlay${mobTab==='modules'?' open':''}`}>
         <div style={{fontFamily:"'Orbitron',monospace",fontSize:10,color:"#4cc9f0",letterSpacing:2,marginBottom:12}}>SELECT MODULE</div>
         {MODULES.map(mod=>(
@@ -1633,7 +1890,7 @@ export default function App(){
         ))}
       </div>
 
-      {/*  MOBILE OPS OVERLAY ─ */}
+      {/* ── MOBILE OPS OVERLAY ─────────────────────────────── */}
       <div className={`mob-overlay${mobTab==='ops'?' open':''}`}>
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
           <span style={{fontSize:22}}>{activeMod.icon}</span>
@@ -1664,7 +1921,7 @@ export default function App(){
         </>}
       </div>
 
-      {/*  MOBILE THEORY OVERLAY  */}
+      {/* ── MOBILE THEORY OVERLAY ──────────────────────────── */}
       <div className={`mob-overlay${mobTab==='theory'?' open':''}`}>
         <div className="lbl" style={{marginTop:0}}>Theory — {activeMod.label}</div>
         {Object.entries(activeMod.theory||{}).map(([k,v])=>(
