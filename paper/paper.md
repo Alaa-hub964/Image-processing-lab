@@ -50,7 +50,7 @@ DIPT-Web differs from all of these in two specific ways: (1) every algorithm is 
 
 # Software Design
 
-![DIPT-Web interface showing the 17-module sidebar, operation panel, live canvas, and theory section. The active module is Optical Flow with the live webcam Sobel edge detection running at approximately 30 frames per second.](figure1.png)
+![DIPT-Web interface showing the 17-module sidebar, operation panel, live canvas, and theory section. The active module is Optical Flow with the live webcam Sobel edge detection running at approximately 30 frames per second.](DIPT-Web-fig.png)
 
 Several deliberate design decisions shaped the architecture of DIPT-Web.
 
