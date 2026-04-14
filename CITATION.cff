@@ -1,0 +1,56 @@
+cff-version: 1.2.0
+message: "If you use DIPT-Web in your research or teaching, please cite it using the metadata below."
+type: software
+title: "DIPT-Web: A Browser-Based Interactive Digital Image Processing Toolkit"
+version: 2.0.1
+date-released: 2026-03-28
+license: MIT
+repository-code: https://github.com/Alaa-hub964/Image-processing-lab
+url: https://image-processing-lab-pied.vercel.app
+doi: 10.5281/zenodo.19291199
+abstract: >
+  DIPT-Web is an open-source, browser-based interactive platform for learning
+  and exploring digital image processing. It implements 17 processing modules
+  and 187 individual operations entirely in client-side JavaScript using the
+  HTML5 Canvas API, with no external image processing library required.
+  The platform covers the full curriculum of a standard one-semester Digital
+  Image Processing course and includes a real-time Sobel edge detection mode
+  using the WebRTC getUserMedia() API.
+authors:
+  - family-names: Alowaidi
+    given-names: Alaa
+    orcid: https://orcid.org/0009-0003-8833-2471
+    email: abd94057@gmail.com
+    affiliation: "School of Computing & Artificial Intelligence, Lovely Professional University, Phagwara, Punjab, India"
+  - family-names: Pateriya
+    given-names: Pushpendra Kumar
+    email: pushpendra.mnnit@gmail.com
+    affiliation: "School of Computing & Artificial Intelligence, Lovely Professional University, Phagwara, Punjab, India"
+keywords:
+  - image processing
+  - digital image processing
+  - education
+  - JavaScript
+  - HTML5 Canvas
+  - WebRTC
+  - computer vision
+  - browser-based
+  - mobile web
+  - real-time
+  - optical flow
+  - wavelets
+  - morphological operations
+  - feature detection
+references:
+  - type: article
+    title: "Digital Image Processing"
+    authors:
+      - family-names: Gonzalez
+        given-names: Rafael C.
+      - family-names: Woods
+        given-names: Richard E.
+    year: 2018
+    publisher:
+      name: Pearson Education
+    edition: "4th"
+    isbn: "978-0-13-335672-4"
