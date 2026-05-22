@@ -4,9 +4,9 @@
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-Vercel-black)](https://image-processing-lab-pied.vercel.app)
 [![GitHub Stars](https://img.shields.io/github/stars/Alaa-hub964/Image-processing-lab)](https://github.com/Alaa-hub964/Image-processing-lab/stargazers)
 
-A browser-based interactive digital image processing educational platform implementing '17 modules' and '187 operations' entirely in pure JavaScript using the HTML5 Canvas API — no external image processing library required.
+A browser-based interactive digital image processing educational platform implementing **17 modules** and **187 operations** entirely in pure JavaScript using the HTML5 Canvas API — no external image processing library required.
 
-🔗 'Live Demo:' https://image-processing-lab-pied.vercel.app
+🔗 **Live Demo:** https://image-processing-lab-pied.vercel.app
 
 ---
 
@@ -14,7 +14,7 @@ A browser-based interactive digital image processing educational platform implem
 
 DIPT-Web lets you apply classical image processing algorithms to images directly in your browser — no installation, no Python, no MATLAB, no account. Open the link and start processing immediately.
 
-It also supports 'real-time live webcam processing' — point your camera at any object and see a live Sobel edge skeleton of the scene at ~30 fps.
+It also supports **real-time live webcam processing** — point your camera at any object and see a live Sobel edge skeleton of the scene at ~30 fps.
 
 ---
 
@@ -44,21 +44,21 @@ It also supports 'real-time live webcam processing' — point your camera at any
 
 ## Features
 
-- ✅ 'Zero installation' — runs in any modern browser
-- ✅ 'No external image processing library' — pure JavaScript + HTML5 Canvas API
-- ✅ '187 operations' across 17 modules
-- ✅ 'Live webcam processing' — real-time Sobel edge detection at ~30 fps
-- ✅ 'Three webcam modes' — Sobel edges, Neon colour edges, raw colour feed
-- ✅ 'Side-by-side display' — original and processed canvases always visible
-- ✅ 'RGB histograms' — update live on every parameter change
-- ✅ 'Difference map' — shows |original − processed| pixel difference
-- ✅ 'Theory accordion' — shows the mathematical formula for every operation
-- ✅ 'Interactive sliders' — adjust gamma, threshold, filter order, cutoff frequency in real time
-- ✅ 'Export button' — download processed image as PNG
-- ✅ 'Quiz mode' — identify operations from processed images, score tracked
-- ✅ 'Synthetic test image' — generated on first load, no upload required
-- ✅ 'Fully mobile responsive' — bottom navigation bar on phones, all 187 operations accessible
-- ✅ 'Touch optimized' — enlarged chips and slider thumbs for comfortable thumb interaction
+- ✅ **Zero installation** — runs in any modern browser
+- ✅ **No external image processing library** — pure JavaScript + HTML5 Canvas API
+- ✅ **187 operations** across 17 modules
+- ✅ **Live webcam processing** — real-time Sobel edge detection at ~30 fps
+- ✅ **Three webcam modes** — Sobel edges, Neon colour edges, raw colour feed
+- ✅ **Side-by-side display** — original and processed canvases always visible
+- ✅ **RGB histograms** — update live on every parameter change
+- ✅ **Difference map** — shows |original − processed| pixel difference
+- ✅ **Theory accordion** — shows the mathematical formula for every operation
+- ✅ **Interactive sliders** — adjust gamma, threshold, filter order, cutoff frequency in real time
+- ✅ **Export button** — download processed image as PNG
+- ✅ **Quiz mode** — identify operations from processed images, score tracked
+- ✅ **Synthetic test image** — generated on first load, no upload required
+- ✅ **Fully mobile responsive** — bottom navigation bar on phones, all 187 operations accessible
+- ✅ **Touch optimized** — enlarged chips and slider thumbs for comfortable thumb interaction
 
 ---
 
@@ -74,7 +74,7 @@ https://image-processing-lab-pied.vercel.app
 
 ### Run locally
 
-'Requirements:' Node.js 18 or higher, npm
+**Requirements:** Node.js 18 or higher, npm
 
 ```bash
 # Clone the repository
@@ -88,9 +88,9 @@ npm install
 npm run dev
 ```
 
-The app will be available at `image-processing-lab-pied.vercel.app`
+The app will be available at the Vercel URL above
 
-> 'Note:' HTTPS is required for webcam access. The `vite-plugin-mkcert` package automatically generates a trusted local certificate on first run.
+> **Note:** HTTPS is required for webcam access. The `vite-plugin-mkcert` package automatically generates a trusted local certificate on first run.
 
 ### Build for production
 
@@ -134,12 +134,12 @@ Module-specific algorithm (pure JavaScript)
 New ImageData → Canvas → Display
 ```
 
-'Key technical decisions:'
+**Key technical decisions:**
 
-- '`Float32Array` for intermediate results' — convolution outputs can be negative; clamping to `Uint8ClampedArray` too early loses information
-- 'Loop-based `arrMin()`/`arrMax()`' — `Math.min(...largeArray)` causes stack overflow for images larger than ~256×256
-- '`requestAnimationFrame` render loop' — synchronizes webcam processing with display refresh for smooth live edge detection
-- 'Single pure function' — `processImg()` never mutates input, making all 187 operations testable in isolation
+- **`Float32Array` for intermediate results** — convolution outputs can be negative; clamping to `Uint8ClampedArray` too early loses information
+- **Loop-based `arrMin()`/`arrMax()`** — `Math.min(...largeArray)` causes stack overflow for images larger than ~256×256
+- **`requestAnimationFrame` render loop** — synchronizes webcam processing with display refresh for smooth live edge detection
+- **Single pure function** — `processImg()` never mutates input, making all 187 operations testable in isolation
 
 ---
 
@@ -168,14 +168,14 @@ New ImageData → Canvas → Display
 | WebRTC getUserMedia | — | Live webcam access |
 | vite-plugin-mkcert | — | Local HTTPS certificate for webcam |
 
-'Runtime dependencies:' React 18 only.  
-'No image processing libraries' (no OpenCV.js, no jimp, no sharp).
+**Runtime dependencies:** React 18 only.  
+**No image processing libraries** (no OpenCV.js, no jimp, no sharp).
 
 ---
 
 ## Mobile Support
 
-DIPT-Web is fully mobile responsive. On screens under 768px a 'bottom navigation bar' replaces the desktop sidebar, providing full access to all 187 operations on smartphones.
+DIPT-Web is fully mobile responsive. On screens under 768px a **bottom navigation bar** replaces the desktop sidebar, providing full access to all 187 operations on smartphones.
 
 | Tab | Content |
 |-----|---------|
@@ -216,7 +216,7 @@ To add a new module, add a new object to the `MODULES` array following the exist
 If you use DIPT-Web in your research or teaching, please cite:
 
 ```bibtex
-@article{Dipt_web_2026,
+@article{ipt_web_2026,
   author  = {Alowaidi, Alaa and Pateriya, Pushpendra Kumar},
   title   = {{DIPT-Web}: A Browser-Based Interactive Digital Image Processing Toolkit
              Implementing 17 Educational Modules in Pure {JavaScript}},
