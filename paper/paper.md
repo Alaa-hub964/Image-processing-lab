@@ -76,7 +76,7 @@ DIPT-Web covers all 17 chapter topics of Gonzalez and Woods [@gonzalez2018], the
 
 # AI Usage Disclosure
 
-Claude (Anthropic, claude-sonnet-4-6) was used to assist with portions of the JavaScript source code generation, code debugging, and drafting sections of this paper. All AI-assisted code was reviewed, tested, and validated by the authors. All AI-assisted paper text was reviewed, edited, and rewritten by the authors. The core architectural decisions — module structure, Canvas API pipeline, no-library approach, live webcam design — were made by the authors. The authors take full responsibility for the accuracy, originality, and content of all submitted materials.
+Claude (Anthropic, claude-sonnet-4-6) was used to assist with portions of the JavaScript source code generation, code debugging, All AI-assisted code was reviewed, tested, and validated by the authors. The core architectural decisions — module structure, Canvas API pipeline, no-library approach, live webcam design — were made by the authors. The authors take full responsibility for the accuracy, originality, and content of all submitted materials.
 
 # Acknowledgements
 
