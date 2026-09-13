@@ -217,7 +217,7 @@ If you use DIPT-Web in your research or teaching, please cite:
 
 ```bibtex
 @article{ipt_web_2026,
-  author  = {Alowaidi, Alaa and Pateriya, Pushpendra Kumar},
+  author  = {Alaa Alowaidi and Pushpendra Kumar Pateriya },
   title   = {{DIPT-Web}: A Browser-Based Interactive Digital Image Processing Toolkit
              Implementing 17 Educational Modules in Pure {JavaScript}},
   journal = {Journal of Open Source Software},
