@@ -74,10 +74,6 @@ DIPT-Web covers all 17 chapter topics of Gonzalez and Woods [@gonzalez2018], the
 
 **Limitations and future work.** The current implementation performs all computation on the CPU using JavaScript typed arrays. Computationally intensive operations such as CLAHE and full Gabor filter banks are noticeably slow at larger image sizes. Future work will address three directions: (1) GPU acceleration of heavy operations using WebGL fragment shaders; (2) addition of deep learning inference modules via TensorFlow.js to bridge classical and modern image processing; and (3) a formal controlled user study comparing learning outcomes between students using DIPT-Web and those using MATLAB-based laboratory environments.
 
-# AI Usage Disclosure
-
-Claude (Anthropic, claude-sonnet-4-6) was used to assist with portions of the JavaScript source code generation, code debugging, All AI-assisted code was reviewed, tested, and validated by the authors. The core architectural decisions — module structure, Canvas API pipeline, no-library approach, live webcam design — were made by the authors. The authors take full responsibility for the accuracy, originality, and content of all submitted materials.
-
 # Acknowledgements
 
 The authors thank Lovely Professional University for providing the academic environment that supported this work. The Vercel platform is acknowledged for providing free hosting for the deployed application.
