@@ -107,9 +107,7 @@ npm run preview
 Image-processing-lab/
 ├── src/
 │   └── App.jsx          # Main application — all 187 operations
-├── paper/
-│   ├── paper.md         # JOSS paper
-│   └── paper.bib        # BibTeX references
+
 ├── public/
 ├── index.html
 ├── vite.config.js       # Vite + mkcert HTTPS config
@@ -211,20 +209,7 @@ To add a new module, add a new object to the `MODULES` array following the exist
 
 ---
 
-## Citation
 
-If you use DIPT-Web in your research or teaching, please cite:
-
-```bibtex
-@article{ipt_web_2026,
-  author  = {Alaa Alowaidi and Pushpendra Kumar Pateriya },
-  title   = {{DIPT-Web}: A Browser-Based Interactive Digital Image Processing Toolkit
-             Implementing 17 Educational Modules in Pure {JavaScript}},
-  journal = {Journal of Open Source Software},
-  year    = {2026},
-  url     = {https://github.com/Alaa-hub964/Image-processing-lab}
-}
-```
 
 ---
 
